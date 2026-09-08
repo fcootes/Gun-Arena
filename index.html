@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en" style="background-color: #000000; color-scheme: dark;">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gun Arena FPS</title>
+    <meta name="description" content="Fast-paced 3D browser first-person shooter featuring weapon loadouts, tactical combat, and zombie wave survival." />
+    <meta property="og:title" content="Gun Arena FPS" />
+    <meta property="og:description" content="Fast-paced 3D browser first-person shooter featuring weapon loadouts, tactical combat, and zombie wave survival." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      html, body, #root {
+        background-color: #000000 !important;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+    </style>
+    <script>
+      // Prevent Vite HMR reconnect/reload loop in cloud preview environments
+      (function() {
+        try {
+          const RealWebSocket = window.WebSocket;
+          if (RealWebSocket) {
+            window.WebSocket = function(url, protocols) {
+              const urlStr = String(url || '');
+              const protoStr = Array.isArray(protocols) ? protocols.join(',') : String(protocols || '');
+              const isViteSocket = protoStr.includes('vite-hmr') || protoStr.includes('vite-ping') || urlStr.includes('token=');
+
+              if (isViteSocket) {
+                const mock = new EventTarget();
+                mock.readyState = 1; // WebSocket.OPEN
+                mock.url = urlStr;
+                mock.protocol = Array.isArray(protocols) ? protocols[0] : (protocols || 'vite-hmr');
+                mock.send = function() {};
+                mock.close = function() {};
+                setTimeout(() => {
+                  if (typeof mock.onopen === 'function') mock.onopen({ type: 'open' });
+                  mock.dispatchEvent(new Event('open'));
+                }, 5);
+                return mock;
+              }
+
+              return new RealWebSocket(url, protocols);
+            };
+            window.WebSocket.prototype = RealWebSocket.prototype;
+            window.WebSocket.CONNECTING = 0;
+            window.WebSocket.OPEN = 1;
+            window.WebSocket.CLOSING = 2;
+            window.WebSocket.CLOSED = 3;
+          }
+        } catch (e) {}
+
+        try {
+          let lastReload = Date.now();
+          const origReload = window.location.reload.bind(window.location);
+          Object.defineProperty(window.location, 'reload', {
+            configurable: true,
+            enumerable: true,
+            writable: true,
+            value: function() {
+              const now = Date.now();
+              if (now - lastReload < 15000) {
+                console.warn('[System] Prevented runaway page reload.');
+                return;
+              }
+              lastReload = now;
+              origReload();
+            }
+          });
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body style="background-color: #000000; margin: 0; padding: 0; overflow: hidden;">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
