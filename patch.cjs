@@ -1,119 +1,20 @@
 const fs = require('fs');
-const content = fs.readFileSync('src/App.tsx', 'utf-8');
-const search = `      // Laser gun venting reload
-      if (w.id === 'laser') {
-        if (ws.reloading || (ws.heat ?? 0) <= 0) return;
-        ws.reloading = true;
-        AUDIO.laserBeam.stop();
-        laserBeamMesh.visible = false;
-        const reloadDur = (w.reloadTime ?? 2.2) * player.classReloadMultiplier;
-        ws.reloadT = reloadDur;
-        ws.totalReloadT = reloadDur;
-        AUDIO.laserVent.play(1.0);
-        pushKillFeed('VENTING PLASMA CORE...');
-        return;
-      }
+let code = fs.readFileSync('src/App.tsx', 'utf8');
 
-      if (ws.reloading || ws.ammo === w.mag || (ws.reserve ?? 0) <= 0) return;
-      ws.reloading = true;
-      AUDIO.arSpray.stop();
-      AUDIO.laserBeam.stop();
-      AUDIO.minigunFire.stop();
-      laserBeamMesh.visible = false;
-      player.continuousShots = 0;
-      const reloadDur = (w.reloadTime ?? 2.4) * player.classReloadMultiplier;
-      ws.reloadT = reloadDur;
-      ws.totalReloadT = reloadDur;
+let regex = /function makeBot\(assignedTeam: string \| null = null, zombieTypeOverride: 'walker' \| 'runner' \| 'tank' \| null = null\): Bot \{/;
+code = code.replace(regex, "function makeBot(assignedTeam: string | null = null, zombieTypeOverride: 'walker' | 'runner' | 'tank' | null = null, isVIP = false): Bot {");
 
-      if (w.id === 'pistol') {
-        AUDIO.pistolReload.play(1.0);
-      } else if (w.id === 'ar') {
-        AUDIO.arReload.play(1.0);
-      } else if (w.id === 'shotgun') {
-        setTimeout(() => {
-          if (player.alive && currentSlot().id === 'shotgun' && ws.reloading) {
-            AUDIO.shotgunReload.play(1.0);
-          }
-        }, 150);
-      } else if (w.id === 'sniper') {
-        AUDIO.sniperReload.play(1.0);
-      } else if (w.id === 'smg') {
-        AUDIO.smgReload.play(1.0);
-      } else if (w.id === 'lmg') {
-        AUDIO.lmgReload.play(1.0);
-      } else if (w.id === 'br') {
-        AUDIO.brReload.play(1.0);
-      } else if (w.id === 'railgun') {
-        AUDIO.sniperReload.play(1.0);
-      }`;
+regex = /let team = assignedTeam;\s+if \(isZombie\) team = 'zombie';/;
+code = code.replace(regex, "let team = assignedTeam;\n      if (isVIP) team = 'blue';\n      else if (isZombie) team = 'zombie';");
 
-const replacement = `      // Laser gun venting reload
-      if (w.id === 'laser') {
-        if (ws.reloading || (ws.heat ?? 0) <= 0) return;
-        ws.reloading = true;
-        AUDIO.laserBeam.stop();
-        laserBeamMesh.visible = false;
-        
-        ws.heat = 0;
-        ws.overheated = false;
+regex = /let weaponTypeIndex = 0;\s+if \(roll < 0\.22\) weaponTypeIndex = 0;/;
+code = code.replace(regex, "let weaponTypeIndex = 0;\n      if (isVIP) weaponTypeIndex = 3;\n      else if (roll < 0.22) weaponTypeIndex = 0;");
 
-        const reloadDur = (w.reloadTime ?? 2.2) * player.classReloadMultiplier;
-        ws.reloadT = reloadDur;
-        ws.totalReloadT = reloadDur;
-        AUDIO.laserVent.play(1.0);
-        
-        for (let s = 0; s < 12; s++) {
-          const pt = new THREE.Vector3(0, 0, -0.6);
-          pt.applyMatrix4(vmManager.weaponGroup.matrixWorld);
-          const sm = new THREE.Mesh(
-            new THREE.BoxGeometry(0.02, 0.02, 0.02),
-            new THREE.MeshBasicMaterial({ color: 0xffaa00 })
-          );
-          sm.position.copy(pt);
-          const vel = new THREE.Vector3((Math.random()-0.5)*1.5, (Math.random()-0.5)*1.5, (Math.random()-0.5)*1.5 - 2);
-          vel.applyQuaternion(camera.quaternion);
-          smokePool.push({ mesh: sm, life: 0.3 + Math.random()*0.3, maxLife: 0.6, vel });
-          scene.add(sm);
-        }
-        return;
-      }
+regex = /let isMarine = false;\s+if \(isZombie\) \{/;
+code = code.replace(regex, "let isMarine = false;\n      if (isVIP) {\n        vestColor = 0x0099ff; helmetColor = 0x00bfff; shirtColor = 0x0055aa; pantsColor = 0x003366; skinColor = 0xd2a482;\n      } else if (isZombie) {");
 
-      if (ws.reloading || ws.ammo === w.mag || (ws.reserve ?? 0) <= 0) return;
-      ws.reloading = true;
+regex = /    return \{\n      id: botId,\n      team,\n      isZombie,\n      zType,/;
+code = code.replace(regex, "    return {\n      id: botId,\n      team,\n      isZombie,\n      zType,\n      isVIP,");
 
-      const isTactical = (ws.ammo ?? 0) > 0;
-      ws.isTacticalReload = isTactical;
-      
-      AUDIO.arSpray.stop();
-      AUDIO.laserBeam.stop();
-      AUDIO.minigunFire.stop();
-      laserBeamMesh.visible = false;
-      player.continuousShots = 0;
-      
-      let reloadDur = (w.reloadTime ?? 2.4) * player.classReloadMultiplier;
-      if (!isTactical && ['pistol', 'smg', 'ar', 'lmg', 'br'].includes(w.id)) {
-        reloadDur *= 1.4; // 40% slower empty reload
-      }
-      ws.reloadT = reloadDur;
-      ws.totalReloadT = reloadDur;
-
-      if (['pistol', 'smg', 'ar', 'lmg', 'br'].includes(w.id)) {
-        if (isTactical) AUDIO.reloadTactical.play(1.0);
-        else AUDIO.reloadEmpty.play(1.0);
-      } else if (w.id === 'shotgun') {
-        setTimeout(() => {
-          if (player.alive && currentSlot().id === 'shotgun' && ws.reloading) {
-            AUDIO.shotgunReload.play(1.0);
-          }
-        }, 150);
-      } else if (w.id === 'sniper' || w.id === 'railgun') {
-        AUDIO.sniperReload.play(1.0);
-      }`;
-      
-const newContent = content.replace(search, replacement);
-if (newContent === content) {
-  console.log("No match found!");
-} else {
-  fs.writeFileSync('src/App.tsx', newContent);
-  console.log("Patch applied!");
-}
+fs.writeFileSync('src/App.tsx', code);
+console.log('patched makeBot');

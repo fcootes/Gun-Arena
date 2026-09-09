@@ -264,6 +264,7 @@ export interface ViewmodelManager {
   setRailgunChargeProgress: (progress: number) => void;
   setMinigunSpin: (deltaAngle: number, isVenting: boolean) => void;
   addRecoil: (kick: number, rotX: number) => void;
+  triggerKnifeSlash: () => void;
 }
 
 export function createViewmodelManager(): ViewmodelManager {
@@ -761,29 +762,28 @@ export function createViewmodelManager(): ViewmodelManager {
   const railgunVmGroup = new THREE.Group();
   const railgunBodyGroup = new THREE.Group();
 
-  const vmMatRailgunTitanium = new THREE.MeshStandardMaterial({ color: 0x3b4149, roughness: 0.28, metalness: 0.88 });
-  const vmMatRailgunCarbon = new THREE.MeshStandardMaterial({ color: 0x16181b, roughness: 0.55, metalness: 0.7 });
-  const vmMatRailgunCoil = new THREE.MeshStandardMaterial({ color: 0x22262c, roughness: 0.38, metalness: 0.85 });
+  const vmMatRailgunTitanium = new THREE.MeshStandardMaterial({ color: 0x2a2e35, roughness: 0.45, metalness: 0.88 });
+  const vmMatRailgunCarbon = new THREE.MeshStandardMaterial({ color: 0x141619, roughness: 0.65, metalness: 0.65 });
+  const vmMatRailgunCoil = new THREE.MeshStandardMaterial({ color: 0x1d2126, roughness: 0.48, metalness: 0.85 });
   const vmMatRailgunNeon = new THREE.MeshStandardMaterial({
-    color: 0x00f0ff,
-    emissive: 0x00c8ff,
-    emissiveIntensity: 1.2,
-    roughness: 0.1,
-    metalness: 0.2
+    color: 0x22252a,
+    emissive: 0x000000,
+    roughness: 0.55,
+    metalness: 0.85
   });
   const vmMatRailgunCoreNeon = new THREE.MeshStandardMaterial({
-    color: 0x00f5ff,
-    emissive: 0x00d8ff,
-    emissiveIntensity: 1.4,
-    roughness: 0.12,
-    metalness: 0.15
+    color: 0x1a1d22,
+    emissive: 0x000000,
+    roughness: 0.52,
+    metalness: 0.82
   });
   const vmMatRailgunLens = new THREE.MeshStandardMaterial({
-    color: 0x00d4ff,
+    color: 0x16191f,
     transparent: true,
-    opacity: 0.85,
-    emissive: 0x0088cc,
-    emissiveIntensity: 0.9
+    opacity: 0.9,
+    emissive: 0x000000,
+    roughness: 0.25,
+    metalness: 0.9
   });
 
   // Stock, rear receiver, and grip fixed to the rear chassis
@@ -909,6 +909,58 @@ export function createViewmodelManager(): ViewmodelManager {
     miniVmGroup.rotation.set(0.18, -0.3, -0.15);
   }
 
+  // 13. Tactical Hunting Knife (Close-Quarters Melee)
+  const knifeVmGroup = new THREE.Group();
+  {
+    const matKnifeBlade = new THREE.MeshStandardMaterial({
+      color: 0xdde2eb,
+      metalness: 0.96,
+      roughness: 0.16
+    });
+    const matKnifeEdge = new THREE.MeshStandardMaterial({
+      color: 0xf4f7fa,
+      metalness: 0.98,
+      roughness: 0.1
+    });
+    const matKnifeHandle = new THREE.MeshStandardMaterial({
+      color: 0x16181b,
+      roughness: 0.75,
+      metalness: 0.3
+    });
+    const matKnifeGuard = new THREE.MeshStandardMaterial({
+      color: 0x2b2f36,
+      metalness: 0.85,
+      roughness: 0.35
+    });
+
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.038, 0.13), matKnifeHandle);
+    handle.position.set(0, 0, 0.075);
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.068, 0.014), matKnifeGuard);
+    guard.position.set(0, 0, 0.008);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.048, 0.22), matKnifeBlade);
+    blade.position.set(0, 0.005, -0.10);
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.014, 0.21), matKnifeEdge);
+    edge.position.set(0, -0.022, -0.10);
+
+    const matVmGlove = new THREE.MeshStandardMaterial({ color: 0x1f2126, roughness: 0.75, metalness: 0.25 });
+    const matVmKnuckleArmor = new THREE.MeshStandardMaterial({ color: 0x121315, roughness: 0.4, metalness: 0.7 });
+    const matVmSleeve = new THREE.MeshStandardMaterial({ color: 0x323a2a, roughness: 0.85 });
+
+    // Multi-jointed gloved hand and forearm frame
+    const glovedFist = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.056, 0.09), matVmGlove);
+    glovedFist.position.set(0, -0.005, 0.075);
+    const knuckleGuard = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.022, 0.075), matVmKnuckleArmor);
+    knuckleGuard.position.set(0, 0.022, 0.075);
+
+    const vmForearm = new THREE.Mesh(new THREE.BoxGeometry(0.068, 0.072, 0.22), matVmSleeve);
+    vmForearm.position.set(0, -0.04, 0.21);
+    vmForearm.rotation.x = 0.22;
+
+    knifeVmGroup.add(handle, guard, blade, edge, glovedFist, knuckleGuard, vmForearm);
+    root.add(knifeVmGroup);
+    knifeVmGroup.visible = false;
+  }
+
   const vmModels = [
     arVmGroup,        // 0: AR (Slot 1)
     shotgunVmGroup,   // 1: Shotgun (Slot 2)
@@ -936,6 +988,7 @@ export function createViewmodelManager(): ViewmodelManager {
   let shotgunPumpTimer = 0;
   let pistolSlideFireTimer = 0;
   let smgBoltFireTimer = 0;
+  let knifeMeleePhase = 0;
 
   function update(
     dt: number,
@@ -964,8 +1017,22 @@ export function createViewmodelManager(): ViewmodelManager {
     const showScope = playerAiming && !!w?.scoped;
     root.visible = !showScope;
 
-    for (let i = 0; i < vmModels.length; i++) {
-      vmModels[i].visible = (i === activeModelIdx);
+    if (isMeleeing) {
+      for (let i = 0; i < vmModels.length; i++) {
+        vmModels[i].visible = false;
+      }
+      knifeVmGroup.visible = true;
+      knifeMeleePhase = Math.min(1.0, knifeMeleePhase + dt / 0.32);
+      const p = knifeMeleePhase;
+      // Sharp horizontal metallic blade cutting dynamically from lower left across screen to upper right
+      knifeVmGroup.position.set(-0.35 + p * 0.65, -0.26 + p * 0.40, -0.38 + Math.sin(p * Math.PI) * 0.12);
+      knifeVmGroup.rotation.set(0.35 - p * 0.7, 0.4 - p * 0.8, -0.7 + p * 1.4);
+    } else {
+      knifeMeleePhase = 0;
+      knifeVmGroup.visible = false;
+      for (let i = 0; i < vmModels.length; i++) {
+        vmModels[i].visible = (i === activeModelIdx);
+      }
     }
 
     const moveSpeed = isMoving && playerOnGround ? (playerSprinting ? 1.55 : 1.0) : 0;
@@ -1041,7 +1108,7 @@ export function createViewmodelManager(): ViewmodelManager {
           arMagMesh.position.set(0, -0.09, -0.04);
         }
 
-        if (p > 0.72 && p < 0.86) {
+        if (!currentWs.isTacticalReload && p > 0.72 && p < 0.86) {
           const boltP = (p - 0.72) / 0.14;
           const boltBack = Math.sin(boltP * Math.PI) * 0.045;
           arBoltMesh.position.z = -0.02 + boltBack;
@@ -1224,7 +1291,7 @@ export function createViewmodelManager(): ViewmodelManager {
         }
 
         // Top SLIDE MESH block translates backward and forward along local Z (kept completely intact)
-        if (p < 0.68) {
+        if (currentWs.isTacticalReload || p < 0.68) {
           pistolSlideGroup.position.set(0, 0.032, -0.02);
         } else if (p < 0.80) {
           const rackP = (p - 0.68) / 0.12;
@@ -1298,7 +1365,7 @@ export function createViewmodelManager(): ViewmodelManager {
         }
 
         // Side-bolt release tap animation
-        if (p > 0.72 && p < 0.86) {
+        if (!currentWs.isTacticalReload && p > 0.72 && p < 0.86) {
           const tapP = (p - 0.72) / 0.14;
           const tapOffset = Math.sin(tapP * Math.PI) * 0.012;
           smgBoltMesh.position.x = 0.026 - tapOffset;
@@ -1364,7 +1431,7 @@ export function createViewmodelManager(): ViewmodelManager {
         }
 
         // Small charging lever box on the side snapping backward and forward
-        if (p < 0.76) {
+        if (currentWs.isTacticalReload || p < 0.76) {
           lmgCockingHandle.position.set(0.038, 0.044, 0.02);
         } else if (p < 0.86) {
           const rackBackP = (p - 0.76) / 0.10;
@@ -1442,7 +1509,7 @@ export function createViewmodelManager(): ViewmodelManager {
 
         // STAGE 3: The small top CHARGING LEVER block physically slides backward along its rail toward player,
         // then snaps instantly forward to its starting position
-        if (p < 0.74) {
+        if (currentWs.isTacticalReload || p < 0.74) {
           brChargingHandle.position.set(0.025, 0.064, -0.11);
         } else if (p < 0.84) {
           const rackP = (p - 0.74) / 0.10;
@@ -1583,25 +1650,19 @@ export function createViewmodelManager(): ViewmodelManager {
         } else {
           railgunCoreCellGroup.visible = true;
           railgunCoreCellGroup.position.set(0, 0.022, 0.04);
-          vmMatRailgunCoreNeon.emissiveIntensity = 1.4;
+          vmMatRailgunCoreNeon.emissiveIntensity = 0;
         }
 
-        // Stage 4 Flash: Rails and core pulse bright neon blue upon snap closure
-        if (p >= 0.74 && p <= 0.88) {
-          const flashP = (p - 0.74) / 0.14;
-          const glowPulse = Math.sin(flashP * Math.PI);
-          vmMatRailgunNeon.emissiveIntensity = 1.2 + glowPulse * 4.5;
-          vmMatRailgunCoreNeon.emissiveIntensity = 1.4 + glowPulse * 4.0;
-        } else {
-          vmMatRailgunNeon.emissiveIntensity = 1.2;
-        }
+        // Rugged dark steel chassis maintains matte industrial finish
+        vmMatRailgunNeon.emissiveIntensity = 0;
+        vmMatRailgunCoreNeon.emissiveIntensity = 0;
       } else {
         railgunBodyGroup.rotation.set(0, 0, 0);
         railgunBodyGroup.position.set(0, 0, 0);
         railgunHingeGroup.rotation.set(0, 0, 0);
         railgunCoreCellGroup.visible = true;
         railgunCoreCellGroup.position.set(0, 0.022, 0.04);
-        vmMatRailgunCoreNeon.emissiveIntensity = 1.4;
+        vmMatRailgunCoreNeon.emissiveIntensity = 0;
       }
     }
 
@@ -1665,8 +1726,8 @@ export function createViewmodelManager(): ViewmodelManager {
       targetY = isAds ? -0.144 : -0.19;
       targetZ = isAds ? -0.33 : -0.41;
       if (!currentWs?.reloading) {
-        vmMatRailgunNeon.emissiveIntensity = 1.2 + railgunChargeNorm * 4.5;
-        vmMatRailgunCoreNeon.emissiveIntensity = 1.4 + railgunChargeNorm * 4.0;
+        vmMatRailgunNeon.emissiveIntensity = 0;
+        vmMatRailgunCoreNeon.emissiveIntensity = 0;
       }
     } else if (activeModelIdx >= 10) {
       // Grenades & Minis
@@ -1733,6 +1794,9 @@ export function createViewmodelManager(): ViewmodelManager {
     triggerSmgBoltFire,
     setRailgunChargeProgress,
     setMinigunSpin,
-    addRecoil
+    addRecoil,
+    triggerKnifeSlash: () => {
+      knifeMeleePhase = 0;
+    }
   };
 }

@@ -32,6 +32,8 @@ export interface WorldManager {
   structures: { center: THREE.Vector3 }[];
   registerHittable: (mesh: THREE.Object3D) => void;
   unregisterHittable: (mesh: THREE.Object3D) => void;
+  damageEnvironmentalBlock: (object: THREE.Object3D, degradationAmount: number, hitPoint?: THREE.Vector3) => boolean;
+  updateDebris: (dt: number) => void;
   createGroundPickup: (x: number, z: number, weaponTypeIndex: number, ammoAmount: number) => GroundPickup;
   collectPickup: (item: GroundPickup, onAcquire: (msg: string) => void, weaponStates: { count?: number; reserve?: number }[]) => void;
   updateDoors: (dt: number) => void;
@@ -46,6 +48,112 @@ export function createWorld(scene: THREE.Scene): WorldManager {
   const hittableObjects: THREE.Object3D[] = [];
   const groundPickups: GroundPickup[] = [];
   const structures: { center: THREE.Vector3 }[] = [];
+
+  const activeDebris: Array<{
+    mesh: THREE.Mesh;
+    vel: THREE.Vector3;
+    rotVel: THREE.Vector3;
+    life: number;
+  }> = [];
+
+  function makeDestructible(mesh: THREE.Mesh, collider: WorldCollider, colorHex: number): void {
+    mesh.userData = {
+      type: 'building',
+      destructible: true,
+      degradation: 0,
+      collider,
+      blockColor: colorHex
+    };
+  }
+
+  function damageEnvironmentalBlock(object: THREE.Object3D, degradationAmount: number, hitPoint?: THREE.Vector3): boolean {
+    if (!object || !object.userData || !object.userData.destructible || object.userData.destroyed) {
+      return false;
+    }
+    object.userData.degradation = (object.userData.degradation || 0) + degradationAmount;
+
+    if (object instanceof THREE.Mesh && object.material) {
+      const mat = object.material as THREE.MeshStandardMaterial;
+      if (mat && mat.color) {
+        mat.color.multiplyScalar(0.94);
+      }
+    }
+
+    if (object.userData.degradation >= 100) {
+      object.userData.destroyed = true;
+      if (object.userData.collider) {
+        object.userData.collider.active = false;
+      }
+      unregisterHittable(object);
+      object.visible = false;
+      if (object.parent) {
+        object.parent.remove(object);
+      }
+
+      // Spawning bursting spray of 8-12 tiny, matching debris particle blocks that tumble to ground via gravity
+      const debrisColor = object.userData.blockColor ?? 0x767066;
+      const count = Math.floor(Math.random() * 5) + 8; // 8-12 debris blocks
+      const origin = hitPoint ? hitPoint.clone() : new THREE.Vector3();
+      if (!hitPoint) object.getWorldPosition(origin);
+
+      for (let k = 0; k < count; k++) {
+        const size = 0.14 + Math.random() * 0.14;
+        const debrisMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(size, size, size),
+          new THREE.MeshStandardMaterial({ color: debrisColor, roughness: 0.9 })
+        );
+        debrisMesh.position.copy(origin).add(new THREE.Vector3(
+          (Math.random() - 0.5) * 0.35,
+          (Math.random() - 0.5) * 0.35,
+          (Math.random() - 0.5) * 0.35
+        ));
+        debrisMesh.castShadow = true;
+        scene.add(debrisMesh);
+        activeDebris.push({
+          mesh: debrisMesh,
+          vel: new THREE.Vector3(
+            (Math.random() - 0.5) * 5.5,
+            2.4 + Math.random() * 3.8,
+            (Math.random() - 0.5) * 5.5
+          ),
+          rotVel: new THREE.Vector3(
+            (Math.random() - 0.5) * 12,
+            (Math.random() - 0.5) * 12,
+            (Math.random() - 0.5) * 12
+          ),
+          life: 2.8
+        });
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function updateDebris(dt: number): void {
+    for (let i = activeDebris.length - 1; i >= 0; i--) {
+      const d = activeDebris[i];
+      d.life -= dt;
+      if (d.life <= 0) {
+        scene.remove(d.mesh);
+        d.mesh.geometry.dispose();
+        (d.mesh.material as THREE.Material).dispose();
+        activeDebris.splice(i, 1);
+        continue;
+      }
+      d.vel.y -= 18 * dt; // gravity
+      d.mesh.position.addScaledVector(d.vel, dt);
+      d.mesh.rotation.x += d.rotVel.x * dt;
+      d.mesh.rotation.y += d.rotVel.y * dt;
+      d.mesh.rotation.z += d.rotVel.z * dt;
+      const ground = terrainHeight(d.mesh.position.x, d.mesh.position.z);
+      if (d.mesh.position.y <= ground + 0.08) {
+        d.mesh.position.y = ground + 0.08;
+        d.vel.y = -d.vel.y * 0.35;
+        d.vel.x *= 0.65;
+        d.vel.z *= 0.65;
+      }
+    }
+  }
 
   function registerHittable(mesh: THREE.Object3D): void {
     hittableObjects.push(mesh);
@@ -208,7 +316,9 @@ export function createWorld(scene: THREE.Scene): WorldManager {
     backWall.receiveShadow = true;
     g.add(backWall);
     registerHittable(backWall);
-    worldColliders.push({ minX: x - w / 2, maxX: x + w / 2, minY: y, maxY: y + h, minZ: z - d / 2, maxZ: z - d / 2 + wt, active: true });
+    const backWallCol: WorldCollider = { minX: x - w / 2, maxX: x + w / 2, minY: y, maxY: y + h, minZ: z - d / 2, maxZ: z - d / 2 + wt, active: true };
+    worldColliders.push(backWallCol);
+    makeDestructible(backWall, backWallCol, 0x8d8272);
 
     const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wt, h, d), bodyMat);
     leftWall.position.set(-w / 2 + wt / 2, h / 2, 0);
@@ -216,7 +326,9 @@ export function createWorld(scene: THREE.Scene): WorldManager {
     leftWall.receiveShadow = true;
     g.add(leftWall);
     registerHittable(leftWall);
-    worldColliders.push({ minX: x - w / 2, maxX: x - w / 2 + wt, minY: y, maxY: y + h, minZ: z - d / 2, maxZ: z + d / 2, active: true });
+    const leftWallCol: WorldCollider = { minX: x - w / 2, maxX: x - w / 2 + wt, minY: y, maxY: y + h, minZ: z - d / 2, maxZ: z + d / 2, active: true };
+    worldColliders.push(leftWallCol);
+    makeDestructible(leftWall, leftWallCol, 0x8d8272);
 
     const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wt, h, d), bodyMat);
     rightWall.position.set(w / 2 - wt / 2, h / 2, 0);
@@ -224,7 +336,9 @@ export function createWorld(scene: THREE.Scene): WorldManager {
     rightWall.receiveShadow = true;
     g.add(rightWall);
     registerHittable(rightWall);
-    worldColliders.push({ minX: x + w / 2 - wt, maxX: x + w / 2, minY: y, maxY: y + h, minZ: z - d / 2, maxZ: z + d / 2, active: true });
+    const rightWallCol: WorldCollider = { minX: x + w / 2 - wt, maxX: x + w / 2, minY: y, maxY: y + h, minZ: z - d / 2, maxZ: z + d / 2, active: true };
+    worldColliders.push(rightWallCol);
+    makeDestructible(rightWall, rightWallCol, 0x8d8272);
 
     const frontLeftW = (w - dw) / 2;
     const frontLeft = new THREE.Mesh(new THREE.BoxGeometry(frontLeftW, h, wt), bodyMat);
@@ -233,7 +347,9 @@ export function createWorld(scene: THREE.Scene): WorldManager {
     frontLeft.receiveShadow = true;
     g.add(frontLeft);
     registerHittable(frontLeft);
-    worldColliders.push({ minX: x - w / 2, maxX: x - dw / 2, minY: y, maxY: y + h, minZ: z + d / 2 - wt, maxZ: z + d / 2, active: true });
+    const frontLeftCol: WorldCollider = { minX: x - w / 2, maxX: x - dw / 2, minY: y, maxY: y + h, minZ: z + d / 2 - wt, maxZ: z + d / 2, active: true };
+    worldColliders.push(frontLeftCol);
+    makeDestructible(frontLeft, frontLeftCol, 0x8d8272);
 
     const frontRightW = (w - dw) / 2;
     const frontRight = new THREE.Mesh(new THREE.BoxGeometry(frontRightW, h, wt), bodyMat);
@@ -242,7 +358,9 @@ export function createWorld(scene: THREE.Scene): WorldManager {
     frontRight.receiveShadow = true;
     g.add(frontRight);
     registerHittable(frontRight);
-    worldColliders.push({ minX: x + dw / 2, maxX: x + w / 2, minY: y, maxY: y + h, minZ: z + d / 2 - wt, maxZ: z + d / 2, active: true });
+    const frontRightCol: WorldCollider = { minX: x + dw / 2, maxX: x + w / 2, minY: y, maxY: y + h, minZ: z + d / 2 - wt, maxZ: z + d / 2, active: true };
+    worldColliders.push(frontRightCol);
+    makeDestructible(frontRight, frontRightCol, 0x8d8272);
 
     const lintelH = h - dh;
     if (lintelH > 0.1) {
@@ -252,7 +370,9 @@ export function createWorld(scene: THREE.Scene): WorldManager {
       lintel.receiveShadow = true;
       g.add(lintel);
       registerHittable(lintel);
-      worldColliders.push({ minX: x - dw / 2, maxX: x + dw / 2, minY: y + dh, maxY: y + h, minZ: z + d / 2 - wt, maxZ: z + d / 2, active: true });
+      const lintelCol: WorldCollider = { minX: x - dw / 2, maxX: x + dw / 2, minY: y + dh, maxY: y + h, minZ: z + d / 2 - wt, maxZ: z + d / 2, active: true };
+      worldColliders.push(lintelCol);
+      makeDestructible(lintel, lintelCol, 0x8d8272);
     }
 
     const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(w - wt, 0.2, d - wt), floorMat);
@@ -268,7 +388,9 @@ export function createWorld(scene: THREE.Scene): WorldManager {
     roof.receiveShadow = true;
     g.add(roof);
     registerHittable(roof);
-    worldColliders.push({ minX: x - (w + 0.6) / 2, maxX: x + (w + 0.6) / 2, minY: y + h, maxY: y + h + 0.4, minZ: z - (d + 0.6) / 2, maxZ: z + (d + 0.6) / 2, active: true });
+    const roofCol: WorldCollider = { minX: x - (w + 0.6) / 2, maxX: x + (w + 0.6) / 2, minY: y + h, maxY: y + h + 0.4, minZ: z - (d + 0.6) / 2, maxZ: z + (d + 0.6) / 2, active: true };
+    worldColliders.push(roofCol);
+    makeDestructible(roof, roofCol, 0x5e4537);
 
     if (hasRoofSteps) {
       const stepCount = 3;
@@ -279,9 +401,8 @@ export function createWorld(scene: THREE.Scene): WorldManager {
         stepBox.castShadow = true;
         stepBox.receiveShadow = true;
         g.add(stepBox);
-        stepBox.userData = { type: 'building' };
         registerHittable(stepBox);
-        worldColliders.push({
+        const stepCol: WorldCollider = {
           minX: x + w / 2 + 0.1,
           maxX: x + w / 2 + 1.7,
           minY: y,
@@ -289,7 +410,9 @@ export function createWorld(scene: THREE.Scene): WorldManager {
           minZ: z - d / 2 + s * 1.4 - 0.7,
           maxZ: z - d / 2 + s * 1.4 + 0.7,
           active: true
-        });
+        };
+        worldColliders.push(stepCol);
+        makeDestructible(stepBox, stepCol, 0x4a443a);
       }
     }
 
@@ -325,14 +448,18 @@ export function createWorld(scene: THREE.Scene): WorldManager {
     g.position.set(x, y, z);
     scene.add(g);
 
-    [b1, b2, barrier].forEach(mesh => {
-      mesh.userData = { type: 'building' };
-      registerHittable(mesh);
-    });
+    registerHittable(b1);
+    registerHittable(b2);
+    registerHittable(barrier);
 
-    worldColliders.push({ minX: x - 1.2, maxX: x + 1.2, minY: y, maxY: y + 1.6, minZ: z - 1.2, maxZ: z + 1.2, active: true });
-    worldColliders.push({ minX: x + 0.4 - 1.1, maxX: x + 0.4 + 1.1, minY: y + 1.5, maxY: y + 3.05, minZ: z + 0.2 - 1.1, maxZ: z + 0.2 + 1.1, active: true });
-    worldColliders.push({ minX: x - 1.6 - 1.8, maxX: x - 1.6 + 1.8, minY: y, maxY: y + 1.2, minZ: z + 1.8 - 0.2, maxZ: z + 1.8 + 0.2, active: true });
+    const b1Col: WorldCollider = { minX: x - 1.2, maxX: x + 1.2, minY: y, maxY: y + 1.6, minZ: z - 1.2, maxZ: z + 1.2, active: true };
+    const b2Col: WorldCollider = { minX: x + 0.4 - 1.1, maxX: x + 0.4 + 1.1, minY: y + 1.5, maxY: y + 3.05, minZ: z + 0.2 - 1.1, maxZ: z + 0.2 + 1.1, active: true };
+    const barrierCol: WorldCollider = { minX: x - 1.6 - 1.8, maxX: x - 1.6 + 1.8, minY: y, maxY: y + 1.2, minZ: z + 1.8 - 0.2, maxZ: z + 1.8 + 0.2, active: true };
+
+    worldColliders.push(b1Col, b2Col, barrierCol);
+    makeDestructible(b1, b1Col, 0x3e5265);
+    makeDestructible(b2, b2Col, 0x3e5265);
+    makeDestructible(barrier, barrierCol, 0x6b6e70);
   }
 
   const buildingConfigs = [
@@ -575,6 +702,12 @@ export function createWorld(scene: THREE.Scene): WorldManager {
   function dispose(): void {
     groundPickups.forEach(p => scene.remove(p.group));
     groundPickups.length = 0;
+    activeDebris.forEach(d => {
+      scene.remove(d.mesh);
+      d.mesh.geometry.dispose();
+      (d.mesh.material as THREE.Material).dispose();
+    });
+    activeDebris.length = 0;
   }
 
   return {
@@ -586,6 +719,8 @@ export function createWorld(scene: THREE.Scene): WorldManager {
     structures,
     registerHittable,
     unregisterHittable,
+    damageEnvironmentalBlock,
+    updateDebris,
     createGroundPickup,
     collectPickup,
     updateDoors,

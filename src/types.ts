@@ -58,6 +58,14 @@ export interface Bot {
   team: string;
   isZombie: boolean;
   zType: 'walker' | 'runner' | 'tank';
+  isVIP?: boolean;
+  classId?: ClassId;
+  healSlot?: {
+    medkitCount: number;
+    shieldPotCount: number;
+    healCooldown: number;
+  };
+  slideVel?: THREE.Vector3;
   kills: number;
   meleeDmg: number;
   meleeCooldown: number;
@@ -65,8 +73,14 @@ export interface Bot {
   torsoGroup: THREE.Group;
   armLPivot: THREE.Group;
   armRPivot: THREE.Group;
+  armLLowerPivot?: THREE.Group;
+  armRLowerPivot?: THREE.Group;
   legLPivot: THREE.Group;
   legRPivot: THREE.Group;
+  legLLowerPivot?: THREE.Group;
+  legRLowerPivot?: THREE.Group;
+  faction?: 'usmc' | 'apex' | 'zombie';
+  subClass?: string;
   gunMesh: THREE.Group | null;
   muzzleFlash: THREE.Sprite | null;
   muzzleFlashT: number;
@@ -145,7 +159,8 @@ export interface ExplosionEffect {
 }
 
 export interface MatchConfig {
-  mode: 'ffa' | 'team' | 'zombie';
+  mode: 'ffa' | 'team' | 'zombie' | 'escort';
+  faction?: 'usmc' | 'apex';
   friendlyCount: number;
   enemyCount: number;
   targetScore: number;
