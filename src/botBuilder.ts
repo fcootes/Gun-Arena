@@ -31,6 +31,10 @@ export interface BotBuildOptions {
   weaponTypeIndex: number;
   weaponType: string;
   factionAlignment: 'usmc' | 'apex';
+  gearTier?: 'standard' | 'specialized';
+  headgear?: string;
+  torsoConfig?: string;
+  lowerConfig?: string;
   mode?: string;
   makeFlashSprite: (depthTest: boolean) => THREE.Sprite;
 }
@@ -45,6 +49,7 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
     weaponTypeIndex,
     weaponType,
     factionAlignment,
+    gearTier = 'standard',
     mode,
     makeFlashSprite
   } = options;
@@ -56,6 +61,9 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
 
   let speedMultiplier = 1.0;
   let healthMultiplier = 1.0;
+
+  // Determine if this bot equips specialized faction gear
+  const isSpecializedBot = !isZombie && !isVIP && (gearTier === 'specialized' || (botId % 3 === 0));
 
   // Determine Faction
   let faction: 'usmc' | 'apex' | 'zombie' = 'usmc';
@@ -191,8 +199,8 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
   torsoGroup.add(lowerTorso);
   hitParts.push(lowerTorso);
 
-  // Upper Torso (Chest / Ribs): wider chest plate (0.48 x 0.36 x 0.26)
-  const upperTorso = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.36, 0.26), matShirt);
+  // Upper Torso (Chest / Ribs): wider chest plate (0.56 x 0.36 x 0.26)
+  const upperTorso = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.36, 0.26), matShirt);
   upperTorso.position.y = 1.28;
   upperTorso.castShadow = true;
   torsoGroup.add(upperTorso);
@@ -200,42 +208,62 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
 
   // Tactical Vest Plate on Upper Torso
   if (!isZombie) {
-    const vestMesh = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.34, 0.29), subClass === 'juggernaut' ? matSteelArmor : matVest);
-    vestMesh.position.y = 1.28;
-    vestMesh.castShadow = true;
-    torsoGroup.add(vestMesh);
-    hitParts.push(vestMesh);
+    if (options.torsoConfig) {
+      if (options.torsoConfig === 'molle_vest') {
+        const iotvCarrier = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.38, 0.32), matVest);
+        iotvCarrier.position.set(0, 1.29, 0.01);
+        iotvCarrier.castShadow = true;
+        torsoGroup.add(iotvCarrier);
+        hitParts.push(iotvCarrier);
 
-    // Front Chest Rig Ammunition Pouches (Rifleman / Sergeant / Standard)
-    if (subClass === 'rifleman' || subClass === 'sergeant' || subClass === 'ghost' || subClass === 'infiltrator') {
-      [-0.13, 0, 0.13].forEach(px => {
-        const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.088, 0.14, 0.065), matPouches);
-        pouch.position.set(px, 1.22, 0.175);
-        pouch.castShadow = true;
-        torsoGroup.add(pouch);
-        hitParts.push(pouch);
-      });
-      const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.09), matPouches);
-      sideL.position.set(-0.27, 1.24, 0.02);
-      torsoGroup.add(sideL);
-      hitParts.push(sideL);
+        const neckGuard = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.30), matSteelArmor);
+        neckGuard.position.set(0, 1.50, 0.01);
+        torsoGroup.add(neckGuard);
+        hitParts.push(neckGuard);
+
+        [-0.14, -0.05, 0.05, 0.14].forEach((px) => {
+          const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.15, 0.08), matPouches);
+          pouch.position.set(px, 1.20, 0.19);
+          torsoGroup.add(pouch);
+          hitParts.push(pouch);
+        });
+      } else {
+        const standardPlate = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.34, 0.28), matVest);
+        standardPlate.position.set(0, 1.28, 0.02);
+        torsoGroup.add(standardPlate);
+        hitParts.push(standardPlate);
+
+        [-0.12, 0, 0.12].forEach((px) => {
+          const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.06), matPouches);
+          pouch.position.set(px, 1.18, 0.17);
+          torsoGroup.add(pouch);
+          hitParts.push(pouch);
+        });
+      }
+    } else {
+      const vestMesh = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.34, 0.29), subClass === 'juggernaut' ? matSteelArmor : matVest);
+      vestMesh.position.y = 1.28;
+      vestMesh.castShadow = true;
+      torsoGroup.add(vestMesh);
+      hitParts.push(vestMesh);
+
+      // Front Chest Rig Ammunition Pouches (Rifleman / Sergeant / Standard)
+      if (subClass === 'rifleman' || subClass === 'sergeant' || subClass === 'ghost' || subClass === 'infiltrator') {
+        [-0.13, 0, 0.13].forEach(px => {
+          const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.088, 0.14, 0.065), matPouches);
+          pouch.position.set(px, 1.22, 0.175);
+          pouch.castShadow = true;
+          torsoGroup.add(pouch);
+          hitParts.push(pouch);
+        });
+        const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.09), matPouches);
+        sideL.position.set(-0.27, 1.24, 0.02);
+        torsoGroup.add(sideL);
+        hitParts.push(sideL);
+      }
     }
 
-    // USMC Combat Engineer: Rugged tan tool-belt wrapped around waist block
-    if (subClass === 'engineer') {
-      const toolBelt = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.10, 0.26), matPouches);
-      toolBelt.position.y = 0.98;
-      toolBelt.castShadow = true;
-      [-0.14, 0, 0.14].forEach(bx => {
-        const toolPouch = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.05), matVest);
-        toolPouch.position.set(bx, 0.98, 0.155);
-        toolBelt.add(toolPouch);
-        hitParts.push(toolPouch);
-      });
-      torsoGroup.add(toolBelt);
-      hitParts.push(toolBelt);
-    }
-
+    // USMC Combat Engineer: Removed buggy tool-belt block that caused stray geometry
     // USMC Corpsman: Double-wide medical backpack box
     if (subClass === 'corpsman') {
       const medBackpack = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.38, 0.20), matVest);
@@ -274,6 +302,44 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
       }
     }
 
+    // Specialized Grounded Gear Kits
+    if (isSpecializedBot) {
+      if (faction === 'usmc') {
+        // Ballistic Breacher Kit: Heavy IOTV modular plate carrier with neck & groin guards
+        const breacherNeck = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.12, 0.28), matVest);
+        breacherNeck.position.set(0, 1.48, 0.02);
+        breacherNeck.castShadow = true;
+        torsoGroup.add(breacherNeck);
+        hitParts.push(breacherNeck);
+
+        const breacherGroin = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 0.06), matVest);
+        breacherGroin.position.set(0, 0.82, 0.12);
+        breacherGroin.castShadow = true;
+        torsoGroup.add(breacherGroin);
+        hitParts.push(breacherGroin);
+
+        // Throat mic wire
+        const throatMic = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.024, 0.04), matGun);
+        throatMic.position.set(0, 1.46, 0.145);
+        torsoGroup.add(throatMic);
+
+        // Fortified Perk: +15% Health/Armor, -5% Speed
+        healthMultiplier *= 1.15;
+        speedMultiplier *= 0.95;
+      } else if (faction === 'apex') {
+        // Low-Vis Recon Rig: Lightweight chest rig with Stalker agility
+        const lowVisRig = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.14), matSteelArmor);
+        lowVisRig.position.set(0, 1.22, 0.13);
+        lowVisRig.castShadow = true;
+        torsoGroup.add(lowVisRig);
+        hitParts.push(lowVisRig);
+
+        // Stalker Perk: +10% Speed, -10% Armor
+        healthMultiplier *= 0.90;
+        speedMultiplier *= 1.10;
+      }
+    }
+
     // APEX Juggernaut: Heavy steel armor wrapping
     if (subClass === 'juggernaut') {
       const waistPlate = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.16, 0.28), matSteelArmor);
@@ -307,7 +373,7 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
   // 2. CONNECTOR FIX: Lengthened Inner Neck Cylinder
   if (!isZombie) {
     const neckCylinder = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.24, 12), matSkin);
-    neckCylinder.position.set(0, 1.48, 0);
+    neckCylinder.position.set(0, 1.42, 0);
     neckCylinder.castShadow = true;
     torsoGroup.add(neckCylinder);
     hitParts.push(neckCylinder);
@@ -315,7 +381,7 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
 
   // 3. HEAD HIERARCHY
   const headGroup = new THREE.Group();
-  headGroup.position.set(0, 1.62, 0);
+  headGroup.position.set(0, 1.54, 0);
   torsoGroup.add(headGroup);
 
   if (!isZombie) {
@@ -327,8 +393,40 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
     hitParts.push(headMesh);
     headParts.add(headMesh);
 
-    // USMC Sergeant: Backward baseball cap, tactical 3D beard, comms headset
-    if (subClass === 'sergeant') {
+    if (options.headgear) {
+      if (options.headgear === 'fast') {
+        const helmetMesh = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.19, 0.30), matHelmet);
+        helmetMesh.position.set(0, 0.17, -0.01);
+        helmetMesh.castShadow = true;
+        headGroup.add(helmetMesh);
+        hitParts.push(helmetMesh);
+        headParts.add(helmetMesh);
+
+        const nvgBracket = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.04), matSteelArmor);
+        nvgBracket.position.set(0, 0.16, 0.15);
+        headGroup.add(nvgBracket);
+      } else if (options.headgear === 'boonie') {
+        const hatBase = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.1, 0.26), matVest);
+        hatBase.position.set(0, 0.18, 0);
+        const hatRim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.02, 16), matVest);
+        hatRim.position.set(0, 0.14, 0);
+        headGroup.add(hatBase, hatRim);
+        hitParts.push(hatBase);
+        headParts.add(hatBase);
+      } else if (options.headgear === 'skull') {
+        const skullMask = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.12, 0.13), matSkullMask);
+        skullMask.position.set(0, 0.02, 0.10);
+        skullMask.castShadow = true;
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.10, 0.25), matShirt);
+        cap.position.set(0, 0.22, 0);
+        headGroup.add(skullMask, cap);
+        hitParts.push(skullMask, cap);
+        headParts.add(skullMask);
+        headParts.add(cap);
+      }
+    } else {
+      // USMC Sergeant: Backward baseball cap, tactical 3D beard, comms headset
+      if (subClass === 'sergeant') {
       const capCrown = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.26), matHelmet);
       capCrown.position.set(0, 0.16, 0);
       const capBrim = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.02, 0.11), matHelmet);
@@ -460,7 +558,22 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
       hitParts.push(helmetMesh, visorBrim);
       headParts.add(helmetMesh);
       headParts.add(visorBrim);
+
+      if (isSpecializedBot && faction === 'apex') {
+        const mandible = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.10, 0.12), matSteelArmor);
+        mandible.position.set(0, 0.02, 0.09);
+        headGroup.add(mandible);
+        hitParts.push(mandible);
+        headParts.add(mandible);
+
+        const headsetL = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.07, 0.07), matPouches);
+        headsetL.position.set(-0.14, 0.08, 0);
+        const headsetR = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.07, 0.07), matPouches);
+        headsetR.position.set(0.14, 0.08, 0);
+        headGroup.add(headsetL, headsetR);
+      }
     }
+    } // Close the options.headgear block
   } else {
     // Zombie Screaming Maw & Glowing Crimson Eye Sockets
     const skullTop = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.14, 0.24), matSkin);
@@ -515,6 +628,10 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
   let muzzleFlashRef: THREE.Sprite | null = null;
 
   if (!isZombie) {
+    const isApexSpecialized = isSpecializedBot && faction === 'apex';
+    const isUsmcSpecialized = isSpecializedBot && faction === 'usmc';
+    const lowerArmMat = isApexSpecialized ? matSkin : matShirt;
+
     // Upper Arm Left
     const armLUpper = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.26, 0.14), matShirt);
     armLUpper.position.set(0, -0.13, 0);
@@ -525,7 +642,7 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
     // Lower Arm Pivot Left (Elbow)
     armLLowerPivot.position.set(0, -0.26, 0);
     armLPivot.add(armLLowerPivot);
-    const armLLower = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.12), matShirt);
+    const armLLower = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.12), lowerArmMat);
     armLLower.position.set(0, -0.13, 0.02);
     armLLower.castShadow = true;
     const handL = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.08, 0.10), matGloves);
@@ -543,13 +660,23 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
     // Lower Arm Pivot Right (Elbow)
     armRLowerPivot.position.set(0, -0.26, 0);
     armRPivot.add(armRLowerPivot);
-    const armRLower = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.12), matShirt);
+    const armRLower = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.12), lowerArmMat);
     armRLower.position.set(0, -0.13, 0.02);
     armRLower.castShadow = true;
     const handR = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.08, 0.10), matGloves);
     handR.position.set(0, -0.27, 0.02);
     armRLowerPivot.add(armRLower, handR);
     hitParts.push(armRLower, handR);
+
+    // USMC Breacher: Extra shoulder pauldrons
+    if (isUsmcSpecialized) {
+      const pauldronL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.14, 0.16), matVest);
+      pauldronL.position.set(0, -0.06, 0);
+      armLUpper.add(pauldronL);
+      const pauldronR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.14, 0.16), matVest);
+      pauldronR.position.set(0, -0.06, 0);
+      armRUpper.add(pauldronR);
+    }
 
     // USMC Sergeant: 3 Golden-Yellow V-Chevron stripes on shoulders
     if (subClass === 'sergeant') {
@@ -675,43 +802,52 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
 
   if (!isZombie) {
     // Upper Thigh Left
-    const legLUpper = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.42, 0.18), matPants);
-    legLUpper.position.set(0, -0.21, 0);
+    const legLUpper = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.36, 0.18), matPants);
+    legLUpper.position.set(0, -0.18, 0);
     legLUpper.castShadow = true;
     legLPivot.add(legLUpper);
     hitParts.push(legLUpper);
 
     // Lower Calf Pivot Left (Knee)
-    legLLowerPivot.position.set(0, -0.42, 0);
+    legLLowerPivot.position.set(0, -0.36, 0);
     legLPivot.add(legLLowerPivot);
-    const legLLower = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.16), matPants);
-    legLLower.position.set(0, -0.21, -0.01);
+    const legLLower = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.36, 0.16), matPants);
+    legLLower.position.set(0, -0.18, -0.01);
     legLLower.castShadow = true;
     const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.10, 0.22), matBoots);
-    bootL.position.set(0, -0.41, 0.03);
+    bootL.position.set(0, -0.36, 0.03);
     legLLowerPivot.add(legLLower, bootL);
     hitParts.push(legLLower, bootL);
 
     // Upper Thigh Right
-    const legRUpper = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.42, 0.18), matPants);
-    legRUpper.position.set(0, -0.21, 0);
+    const legRUpper = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.36, 0.18), matPants);
+    legRUpper.position.set(0, -0.18, 0);
     legRUpper.castShadow = true;
     legRPivot.add(legRUpper);
     hitParts.push(legRUpper);
 
     // Lower Calf Pivot Right (Knee)
-    legRLowerPivot.position.set(0, -0.42, 0);
+    legRLowerPivot.position.set(0, -0.36, 0);
     legRPivot.add(legRLowerPivot);
-    const legRLower = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.16), matPants);
-    legRLower.position.set(0, -0.21, -0.01);
+    const legRLower = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.36, 0.16), matPants);
+    legRLower.position.set(0, -0.18, -0.01);
     legRLower.castShadow = true;
     const bootR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.10, 0.22), matBoots);
-    bootR.position.set(0, -0.41, 0.03);
+    bootR.position.set(0, -0.36, 0.03);
     legRLowerPivot.add(legRLower, bootR);
     hitParts.push(legRLower, bootR);
 
-    // USMC Pointman: High-cut tactical knee pad boxes
-    if (subClass === 'pointman') {
+    if (options.lowerConfig) {
+      if (options.lowerConfig === 'holster') {
+        const holsterDrop = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.14), matSteelArmor);
+        holsterDrop.position.set(0.12, -0.05, 0);
+        legRUpper.add(holsterDrop);
+        hitParts.push(holsterDrop);
+      }
+      // 'pouches' are already added on torso for the player, or could add knee pads.
+    } else {
+      // USMC Pointman: High-cut tactical knee pad boxes
+      if (subClass === 'pointman') {
       const kneePadL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.06), matVest);
       kneePadL.position.set(0, -0.06, 0.10);
       legLLowerPivot.add(kneePadL);
@@ -735,6 +871,7 @@ export function buildBotVisuals(options: BotBuildOptions): BotVisualBuildResult 
       legRPivot.add(thighPlateR);
       hitParts.push(thighPlateR);
     }
+    } // Close else for lowerConfig
   } else {
     // Zombie Legs
     const legLMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.86, 0.2), matPants);

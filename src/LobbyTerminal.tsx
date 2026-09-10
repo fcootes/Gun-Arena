@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { ClassId } from './types';
 import { CLASSES } from './App';
 import { VisorType, FactionType } from './lobbyAvatar';
-import { VISOR_THEMES } from './HelmetHUD';
+import { LoadoutDMZ } from './LoadoutDMZ';
+import { useFaction, GearTier, HeadgearOption, TorsoOption, LowerOption } from './FactionContext';
 
-export type LobbyTab = 'play' | 'loadout' | 'gamemode' | 'intel';
+export type LobbyTab = 'play' | 'locker' | 'loadout' | 'gamemode' | 'intel';
 
 export interface PersistentStats {
   totalKills: number;
@@ -22,6 +23,8 @@ export interface LobbyTerminalProps {
   setActiveTab: (tab: LobbyTab) => void;
   factionAlignment: FactionType;
   setFactionAlignment: (f: FactionType) => void;
+  gearTier?: GearTier;
+  setGearTier?: (tier: GearTier) => void;
   visorType: VisorType;
   setVisorType: (v: VisorType) => void;
   selectedClassId: ClassId;
@@ -107,6 +110,8 @@ export const LobbyTerminal: React.FC<LobbyTerminalProps> = ({
   setActiveTab,
   factionAlignment,
   setFactionAlignment,
+  gearTier,
+  setGearTier,
   visorType,
   setVisorType,
   selectedClassId,
@@ -129,6 +134,20 @@ export const LobbyTerminal: React.FC<LobbyTerminalProps> = ({
   showAudioHelper,
   setShowAudioHelper
 }) => {
+  const factionCtx = useFaction();
+  const currentFaction = factionAlignment || factionCtx.faction;
+  const currentGearTier = gearTier || factionCtx.gearTier;
+
+  const handleFactionSelect = (f: FactionType) => {
+    setFactionAlignment(f);
+    factionCtx.setFaction(f);
+  };
+
+  const handleGearTierSelect = (tier: GearTier) => {
+    if (setGearTier) setGearTier(tier);
+    factionCtx.setGearTier(tier);
+  };
+
   const [intelStats] = useState<PersistentStats>(getPersistentStats);
   const currentVisorConfig = HELMET_LOCKER_OPTIONS.find((v) => v.id === visorType) || HELMET_LOCKER_OPTIONS[0];
 
@@ -152,13 +171,14 @@ export const LobbyTerminal: React.FC<LobbyTerminalProps> = ({
             </div>
           </div>
 
-          {/* 4 Clickable Styled Navigation Tab Buttons */}
+          {/* Clickable Styled Navigation Tab Buttons */}
           <div className="flex items-center gap-2">
-            {(['play', 'loadout', 'gamemode', 'intel'] as LobbyTab[]).map((tab) => {
+            {(['play', 'locker', 'loadout', 'gamemode', 'intel'] as LobbyTab[]).map((tab) => {
               const isActive = activeTab === tab;
               const tabLabels: Record<LobbyTab, string> = {
                 play: 'PLAY',
-                loadout: 'LOADOUT',
+                locker: 'LOCKER',
+                loadout: 'WEAPONS',
                 gamemode: 'GAME MODE',
                 intel: 'INTEL'
               };
@@ -239,39 +259,137 @@ export const LobbyTerminal: React.FC<LobbyTerminalProps> = ({
             <div className="flex flex-col gap-2">
               <button
                 disabled={matchMode === 'zombie'}
-                onClick={() => setFactionAlignment('usmc')}
+                onClick={() => handleFactionSelect('usmc')}
                 className={`p-2.5 text-left border rounded-xs transition-all cursor-pointer ${
-                  factionAlignment === 'usmc' || matchMode === 'zombie'
-                    ? 'border-[#628243] bg-[#2b3d1e]/40 shadow-[0_0_8px_rgba(98,130,67,0.4)]'
-                    : 'border-white/10 bg-black/40 hover:border-white/30'
+                  currentFaction === 'usmc' || matchMode === 'zombie'
+                    ? 'border-[#738a54] bg-[#222b1c]/80 shadow-sm'
+                    : 'border-white/10 bg-black/40 hover:border-white/25'
                 }`}
               >
-                <div className="text-xs font-bold text-[#a3d977] tracking-wider">
-                  JOIN USMC COALITION
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#b4dc8b] tracking-wider">
+                    USMC 1st RECON
+                  </span>
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-xs bg-[#738a54]/25 text-[#a3d977] border border-[#738a54]/40">
+                    COALITION
+                  </span>
                 </div>
-                <div className="text-[8px] text-[#8b98a1] mt-0.5">
-                  Olive Drab Digital Camo • 3D Tactical Beard • PASGT Helmet
+                <div className="text-[9px] text-[#cbd5e1]/90 mt-1 leading-tight">
+                  Standard Issue Fatigues • Modular Plate Carrier • Ballistic Helmet
+                </div>
+                <div className="text-[8px] text-[#8b98a1] mt-1 flex items-center gap-1.5">
+                  <span className="text-[#a3d977] font-semibold">PERK: FORTIFIED</span>
+                  <span>•</span>
+                  <span>+15% Armor, -20% Explosive Dmg</span>
                 </div>
               </button>
 
               <button
                 disabled={matchMode === 'zombie'}
-                onClick={() => setFactionAlignment('apex')}
+                onClick={() => handleFactionSelect('apex')}
                 className={`p-2.5 text-left border rounded-xs transition-all cursor-pointer ${
                   matchMode === 'zombie'
                     ? 'opacity-30 cursor-not-allowed'
-                    : factionAlignment === 'apex'
-                    ? 'border-[#ff4444] bg-[#3a1818]/40 shadow-[0_0_8px_rgba(255,68,68,0.4)]'
-                    : 'border-white/10 bg-black/40 hover:border-white/30'
+                    : currentFaction === 'apex'
+                    ? 'border-[#4a5568] bg-[#1a1d24]/80 shadow-sm'
+                    : 'border-white/10 bg-black/40 hover:border-white/25'
                 }`}
               >
-                <div className="text-xs font-bold text-[#ff7777] tracking-wider">
-                  CONTRACT WITH APEX MERCENARIES
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#e2e8f0] tracking-wider">
+                    APEX PMC SHADOW
+                  </span>
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-xs bg-white/10 text-white border border-white/20">
+                    CONTRACTOR
+                  </span>
                 </div>
-                <div className="text-[8px] text-[#8b98a1] mt-0.5">
-                  Carbon Stealth Armor • 3D Skull Mask Plate • Tactical Hood
+                <div className="text-[9px] text-[#cbd5e1]/90 mt-1 leading-tight">
+                  Matte-Black Carbon Weave • Stealth Armor • Tactical Visor Helmet
+                </div>
+                <div className="text-[8px] text-[#8b98a1] mt-1 flex items-center gap-1.5">
+                  <span className="text-[#93c5fd] font-semibold">PERK: STALKER</span>
+                  <span>•</span>
+                  <span>+10% Sprint Speed, Faster ADS</span>
                 </div>
               </button>
+            </div>
+
+            {/* Grounded Gear Tiers Toggle Array */}
+            <div className="border-t border-white/10 pt-2">
+              <div className="text-xs font-bold tracking-widest text-white/90 mb-1.5 flex items-center justify-between">
+                <span>GROUNDED GEAR TIERS</span>
+                <span className="text-[8px] text-[#8b98a1] uppercase">
+                  {currentGearTier === 'specialized' ? 'TIER 2 ACTIVE' : 'TIER 1 ACTIVE'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 mb-2">
+                {/* Tier 1: Standard Issue Baseline */}
+                <button
+                  onClick={() => handleGearTierSelect('standard')}
+                  className={`p-2 text-left border rounded-xs transition-all cursor-pointer flex flex-col justify-between ${
+                    currentGearTier === 'standard'
+                      ? 'border-white bg-white/10 text-white'
+                      : 'border-white/10 bg-black/40 text-[#8b98a1] hover:border-white/20'
+                  }`}
+                >
+                  <div className="text-[10px] font-bold tracking-wider">
+                    TIER 1 // BASELINE
+                  </div>
+                  <div className="text-[8px] mt-1 opacity-80 leading-tight">
+                    Standard Issue Fatigues & Light Rig. Balanced mobility.
+                  </div>
+                </button>
+
+                {/* Tier 2: Specialized Modern Gear Upgrade */}
+                <button
+                  onClick={() => handleGearTierSelect('specialized')}
+                  className={`p-2 text-left border rounded-xs transition-all cursor-pointer flex flex-col justify-between ${
+                    currentGearTier === 'specialized'
+                      ? currentFaction === 'usmc'
+                        ? 'border-[#738a54] bg-[#222b1c]/80 text-[#b4dc8b]'
+                        : 'border-[#60a5fa] bg-[#1e293b]/80 text-[#93c5fd]'
+                      : 'border-white/10 bg-black/40 text-[#8b98a1] hover:border-white/20'
+                  }`}
+                >
+                  <div className="text-[10px] font-bold tracking-wider">
+                    {currentFaction === 'usmc' ? 'TIER 2 // BREACHER' : 'TIER 2 // RECON'}
+                  </div>
+                  <div className="text-[8px] mt-1 opacity-80 leading-tight">
+                    {currentFaction === 'usmc'
+                      ? 'Ballistic Breacher Kit with IOTV Carrier.'
+                      : 'Low-Vis Recon Rig & Mandible Guard.'}
+                  </div>
+                </button>
+              </div>
+
+              {/* Active Gear Details Readout */}
+              <div className="bg-black/50 border border-white/10 p-2 rounded-xs text-[9px] text-[#cbd5e1] space-y-1">
+                <div className="flex justify-between font-bold">
+                  <span className="text-[#8b98a1]">KIT CONFIG:</span>
+                  <span className="text-white">
+                    {currentGearTier === 'specialized'
+                      ? (currentFaction === 'usmc' ? 'BALLISTIC BREACHER KIT' : 'LOW-VIS RECON RIG')
+                      : 'STANDARD ISSUE BASELINE'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8b98a1]">PERK STATUS:</span>
+                  <span className={currentFaction === 'usmc' ? 'text-[#a3d977] font-semibold' : 'text-[#60a5fa] font-semibold'}>
+                    {currentGearTier === 'specialized'
+                      ? (currentFaction === 'usmc' ? 'FORTIFIED (+15% ARMOR)' : 'STALKER (+10% SPRINT)')
+                      : 'STANDARD ATTRIBUTES'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8b98a1]">TACTICAL HUD:</span>
+                  <span className="text-white/80">
+                    {currentGearTier === 'specialized'
+                      ? (currentFaction === 'usmc' ? 'MATTE HELMET PERIMETER' : 'DIGITAL HEADING COMPASS')
+                      : 'CLEAN MINIMALIST'}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Match Quick Sliders */}
@@ -364,6 +482,28 @@ export const LobbyTerminal: React.FC<LobbyTerminalProps> = ({
             {/* Loadout Quick Matrix */}
             <div className="bg-black/50 border border-white/10 p-2.5 rounded-xs text-[10px] space-y-1">
               <div className="flex justify-between">
+                <span className="text-[#8b98a1]">OPERATOR:</span>
+                <span className={`font-bold uppercase ${currentFaction === 'usmc' ? 'text-[#b4dc8b]' : 'text-[#93c5fd]'}`}>
+                  {currentFaction === 'usmc' ? 'USMC 1st RECON' : 'APEX PMC SHADOW'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#8b98a1]">GEAR KIT:</span>
+                <span className="font-bold text-white uppercase">
+                  {currentGearTier === 'specialized'
+                    ? (currentFaction === 'usmc' ? 'T2 BREACHER' : 'T2 RECON')
+                    : 'T1 BASELINE'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#8b98a1]">ACTIVE PERK:</span>
+                <span className={`font-bold uppercase ${currentFaction === 'usmc' ? 'text-[#a3d977]' : 'text-[#60a5fa]'}`}>
+                  {currentGearTier === 'specialized'
+                    ? (currentFaction === 'usmc' ? 'FORTIFIED (+15% ARMOR)' : 'STALKER (+10% SPRINT)')
+                    : 'STANDARD ISSUE'}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-white/5 pt-1">
                 <span className="text-[#8b98a1]">ACTIVE CLASS:</span>
                 <span className="font-bold text-white uppercase">{CLASSES[selectedClassId]?.name}</span>
               </div>
@@ -411,162 +551,116 @@ export const LobbyTerminal: React.FC<LobbyTerminalProps> = ({
       )}
 
       {/* ------------------------------------------------------------------------- */}
-      {/* TAB 2: [ LOADOUT ] Armory Configuration Matrix & Helmet Locker            */}
+      {/* TAB 1.5: [ LOCKER ] Tactical Gear & Armor Customization                   */}
       {/* ------------------------------------------------------------------------- */}
-      {activeTab === 'loadout' && (
-        <div className="flex-1 w-full p-6 flex items-center justify-center pointer-events-auto">
-          <div className="w-[840px] max-w-[95vw] max-h-[82vh] overflow-y-auto bg-[#0c1015]/95 border border-white/15 backdrop-blur-md p-5 rounded-sm shadow-2xl flex flex-col gap-4">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2">
-              <div>
-                <div className="text-sm font-extrabold tracking-widest text-[#2de2e6]">
-                  ARMORY CONFIGURATION MATRIX
-                </div>
-                <div className="text-[10px] text-[#8b98a1]">
-                  Customize your operative combat class, ballistic weapons, and diegetic helmet visor optics.
-                </div>
-              </div>
-              <button
-                onClick={onDeploy}
-                className="px-4 py-1.5 bg-[#2de2e6] text-black font-bold text-xs tracking-wider rounded-xs hover:bg-[#00ff66] transition-colors cursor-pointer"
-              >
-                DEPLOY WITH LOADOUT
-              </button>
+      {activeTab === 'locker' && (
+        <div className="flex-1 w-full p-6 flex flex-col items-center justify-center pointer-events-auto">
+          <div className="w-[1000px] max-w-full bg-[#0c1015]/90 border border-[#2de2e6]/20 backdrop-blur-md p-6 flex flex-col gap-6 rounded-sm shadow-2xl relative overflow-hidden">
+            {/* Top Header */}
+            <div className="border-b border-white/10 pb-3">
+              <h2 className="text-xl font-bold tracking-widest text-[#e8edf0] flex items-center gap-3">
+                <span className="text-[#2de2e6] opacity-70">///</span>
+                TACTICAL LOCKER
+              </h2>
+              <p className="text-xs text-[#8b98a1] mt-1 font-medium tracking-wide">
+                CONFIGURE OPERATOR HARDWARE • COSMETIC OVERRIDES
+              </p>
             </div>
-
-            {/* 1. Tactical Helmet Locker */}
-            <div className="bg-black/40 border border-white/10 p-3 rounded-xs">
-              <div className="text-xs font-bold text-[#2de2e6] tracking-wider mb-2 flex items-center justify-between">
-                <span>TACTICAL HELMET LOCKER (DIEGETIC VISOR OPTICS)</span>
-                <span className="text-[9px] text-[#8b98a1] font-normal">
-                  UPDATES 3D AVATAR & IN-GAME HELMET VISOR HUD TINT
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                {HELMET_LOCKER_OPTIONS.map((item) => {
-                  const isSelected = visorType === item.id;
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => setVisorType(item.id)}
-                      className={`p-2.5 border rounded-xs cursor-pointer transition-all ${
-                        isSelected
-                          ? 'border-white bg-white/10 shadow-[0_0_12px_rgba(255,255,255,0.2)]'
-                          : 'border-white/10 bg-black/50 hover:border-white/30'
-                      }`}
-                      style={{
-                        borderColor: isSelected ? item.tint : undefined
-                      }}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <div
-                          className="w-3 h-3 rounded-xs shadow-sm"
-                          style={{ backgroundColor: item.tint }}
-                        />
-                        <span className="text-[11px] font-bold text-white tracking-wider">
-                          {item.name}
-                        </span>
-                      </div>
-                      <div className="text-[9px] text-[#8b98a1] leading-relaxed">
-                        {item.desc}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 2. Battlefront-Style 5-Class Selector */}
-            <div className="bg-black/40 border border-white/10 p-3 rounded-xs">
-              <div className="text-xs font-bold text-[#2de2e6] tracking-wider mb-2 flex items-center justify-between">
-                <span>TACTICAL CLASS SPECIALIZATION</span>
-                <span className="text-[9px] text-[#8b98a1] font-normal">
-                  PERK: {CLASSES[selectedClassId]?.perkName}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {(Object.keys(CLASSES) as ClassId[]).map((cKey) => {
-                  const cls = CLASSES[cKey];
-                  const isSelected = selectedClassId === cKey;
-                  return (
-                    <button
-                      key={cls.id}
-                      onClick={() => {
-                        setSelectedClassId(cls.id);
-                        setSelectedPrimary(cls.defaultPrimary);
-                        setSelectedSecondary(cls.defaultSecondary);
-                      }}
-                      className={`p-2 text-left border rounded-xs transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-white/10 shadow-md'
-                          : 'bg-black/50 border-white/10 hover:border-white/30'
-                      }`}
-                      style={{
-                        borderColor: isSelected ? cls.color : undefined
-                      }}
-                    >
-                      <div className="text-xs font-bold tracking-wider" style={{ color: cls.color }}>
-                        {cls.name}
-                      </div>
-                      <div className="text-[8px] text-[#8b98a1] mt-0.5">{cls.tagline}</div>
-                      <div className="text-[8px] text-white/80 mt-1 line-clamp-2 leading-tight">
-                        {cls.perkDesc}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 3. Primary & Secondary Weapon Selectors */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Primary Selector */}
-              <div className="bg-black/40 border border-white/10 p-3 rounded-xs flex flex-col justify-between">
-                <div>
-                  <div className="text-xs font-bold text-[#2de2e6] tracking-wider mb-1">
-                    PRIMARY WEAPON SELECTION
-                  </div>
-                  <div className="text-[9px] text-[#8b98a1] mb-2">
-                    Assault Rifles, Pump Shotguns, and Heavy Suppression Armaments.
+            
+            <div className="flex gap-6 h-[50vh] min-h-[400px]">
+              {/* Left Column: Config List */}
+              <div className="flex-1 flex flex-col gap-3 overflow-y-auto pr-2 custom-scroll">
+                
+                {/* Headgear */}
+                <div className="bg-black/40 border border-white/5 p-4 flex flex-col gap-2">
+                  <div className="text-xs font-bold text-[#8b98a1] tracking-widest mb-1">HEADGEAR CONFIGURATION</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'base', label: 'BARE HEAD', desc: 'No ballistic protection' },
+                      { id: 'fast', label: 'FAST HELMET', desc: 'High-cut ballistic helmet' },
+                      { id: 'boonie', label: 'BOONIE HAT', desc: 'Canvas field hat' },
+                      { id: 'skull', label: 'SKULL MASK', desc: 'Ballistic face shield' }
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        onClick={() => factionCtx?.setHeadgear(opt.id as HeadgearOption)}
+                        className={`text-left p-2 border ${factionCtx?.headgear === opt.id ? 'bg-[#2de2e6]/10 border-[#2de2e6]/50 text-[#2de2e6]' : 'bg-white/5 border-transparent text-[#8b98a1] hover:bg-white/10'}`}
+                      >
+                        <div className="text-xs font-bold">{opt.label}</div>
+                        <div className="text-[9px] opacity-70 mt-1">{opt.desc}</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <select
-                  value={selectedPrimary}
-                  onChange={(e) => setSelectedPrimary(e.target.value)}
-                  className="w-full bg-black/90 border border-white/20 text-[#2de2e6] text-xs p-2 rounded-xs outline-none cursor-pointer focus:border-[#2de2e6]"
-                >
-                  {ARMORY_CATEGORIES.primary.map((opt) => (
-                    <option key={opt.id} value={opt.id} className="bg-[#0c1015] text-white">
-                      [{opt.category}] {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
-              {/* Secondary Selector */}
-              <div className="bg-black/40 border border-white/10 p-3 rounded-xs flex flex-col justify-between">
-                <div>
-                  <div className="text-xs font-bold text-[#2de2e6] tracking-wider mb-1">
-                    SECONDARY WEAPON SELECTION
-                  </div>
-                  <div className="text-[9px] text-[#8b98a1] mb-2">
-                    Sidearms, Submachine Guns, and Close-Quarters Backup.
+                {/* Torso */}
+                <div className="bg-black/40 border border-white/5 p-4 flex flex-col gap-2">
+                  <div className="text-xs font-bold text-[#8b98a1] tracking-widest mb-1">TORSO CONFIGURATION</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'chest_rig', label: 'LOW-PROFILE RIG', desc: 'Minimalist canvas rig' },
+                      { id: 'molle_vest', label: 'HEAVY MOLLE VEST', desc: 'Full plate carrier' }
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        onClick={() => factionCtx?.setTorsoConfig(opt.id as TorsoOption)}
+                        className={`text-left p-2 border ${factionCtx?.torsoConfig === opt.id ? 'bg-[#2de2e6]/10 border-[#2de2e6]/50 text-[#2de2e6]' : 'bg-white/5 border-transparent text-[#8b98a1] hover:bg-white/10'}`}
+                      >
+                        <div className="text-xs font-bold">{opt.label}</div>
+                        <div className="text-[9px] opacity-70 mt-1">{opt.desc}</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <select
-                  value={selectedSecondary}
-                  onChange={(e) => setSelectedSecondary(e.target.value)}
-                  className="w-full bg-black/90 border border-white/20 text-[#2de2e6] text-xs p-2 rounded-xs outline-none cursor-pointer focus:border-[#2de2e6]"
-                >
-                  {ARMORY_CATEGORIES.secondary.map((opt) => (
-                    <option key={opt.id} value={opt.id} className="bg-[#0c1015] text-white">
-                      [{opt.category}] {opt.label}
-                    </option>
-                  ))}
-                </select>
+
+                {/* Lower */}
+                <div className="bg-black/40 border border-white/5 p-4 flex flex-col gap-2">
+                  <div className="text-xs font-bold text-[#8b98a1] tracking-widest mb-1">LOWER CONFIGURATION</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'holster', label: 'THIGH HOLSTER', desc: 'Sidearm quick-draw' },
+                      { id: 'pouches', label: 'UTILITY POUCHES', desc: 'Extra magazines' }
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        onClick={() => factionCtx?.setLowerConfig(opt.id as LowerOption)}
+                        className={`text-left p-2 border ${factionCtx?.lowerConfig === opt.id ? 'bg-[#2de2e6]/10 border-[#2de2e6]/50 text-[#2de2e6]' : 'bg-white/5 border-transparent text-[#8b98a1] hover:bg-white/10'}`}
+                      >
+                        <div className="text-xs font-bold">{opt.label}</div>
+                        <div className="text-[9px] opacity-70 mt-1">{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Right Column: Display Placeholder for balance */}
+              <div className="w-[300px] border border-white/10 bg-black/50 p-4 flex flex-col justify-end">
+                <div className="text-[10px] text-[#2de2e6] tracking-widest text-center border-t border-[#2de2e6]/20 pt-2">
+                  REAL-TIME PREVIEW ACTIVE
+                </div>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ------------------------------------------------------------------------- */}
+      {/* TAB 2: [ LOADOUT ] Modern Tactical DMZ / MWIII Weapon Vault Grid          */}
+      {/* ------------------------------------------------------------------------- */}
+      {activeTab === 'loadout' && (
+        <LoadoutDMZ
+          selectedPrimary={selectedPrimary}
+          setSelectedPrimary={setSelectedPrimary}
+          selectedSecondary={selectedSecondary}
+          setSelectedSecondary={setSelectedSecondary}
+          selectedClassId={selectedClassId}
+          setSelectedClassId={setSelectedClassId}
+          visorType={visorType}
+          setVisorType={setVisorType}
+          onDeploy={onDeploy}
+        />
       )}
 
       {/* ------------------------------------------------------------------------- */}

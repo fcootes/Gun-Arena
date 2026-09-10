@@ -33,6 +33,7 @@ import { buildBotVisuals } from './botBuilder';
 import { createLobbyAvatar, VisorType, FactionType, LobbyAvatarController } from './lobbyAvatar';
 import { HelmetHUD, RadarPing } from './HelmetHUD';
 import { LobbyTerminal, LobbyTab } from './LobbyTerminal';
+import { useFaction } from './FactionContext';
 
 export const CLASSES: Record<ClassId, ClassConfig> = {
   assault: {
@@ -162,7 +163,7 @@ export default function App() {
 
   // Match Config & Difficulty UI
   const [matchMode, setMatchMode] = useState<'ffa' | 'team' | 'zombie' | 'escort'>('ffa');
-  const [factionAlignment, setFactionAlignment] = useState<'usmc' | 'apex'>('usmc');
+  const { faction: factionAlignment, setFaction: setFactionAlignment, gearTier } = useFaction();
   const [friendlyCount, setFriendlyCount] = useState(3);
   const [enemyCount, setEnemyCount] = useState(5);
   const [targetScore, setTargetScore] = useState(20);
@@ -200,6 +201,8 @@ export default function App() {
   matchModeRef.current = matchMode;
   const factionAlignmentRef = useRef(factionAlignment);
   factionAlignmentRef.current = factionAlignment;
+  const gearTierRef = useRef(gearTier);
+  gearTierRef.current = gearTier;
   const friendlyCountRef = useRef(friendlyCount);
   friendlyCountRef.current = friendlyCount;
   const enemyCountRef = useRef(enemyCount);
@@ -272,9 +275,12 @@ export default function App() {
     camera.rotation.order = 'YXZ';
     scene.add(camera);
 
-    // Sky & Lighting
+    // Sky & Lighting (Combat)
+    const combatLightGroup = new THREE.Group();
+    scene.add(combatLightGroup);
+
     const hemiLight = new THREE.HemisphereLight(0xbfd9ff, 0x3a3226, 0.65);
-    scene.add(hemiLight);
+    combatLightGroup.add(hemiLight);
     const sunLight = new THREE.DirectionalLight(0xfff2d9, 1.05);
     sunLight.position.set(120, 180, 60);
     sunLight.castShadow = true;
@@ -284,8 +290,10 @@ export default function App() {
     sunLight.shadow.camera.top = 140;
     sunLight.shadow.camera.bottom = -140;
     sunLight.shadow.camera.far = 450;
-    scene.add(sunLight);
-    scene.fog = new THREE.Fog(0xbfd6e6, 80, 360);
+    combatLightGroup.add(sunLight);
+    const combatFog = new THREE.Fog(0xbfd6e6, 80, 360);
+    const lobbyFog = new THREE.Fog(0x000000, 5, 20);
+    scene.fog = combatFog;
 
     // Sky dome
     const skyGeo = new THREE.SphereGeometry(420, 20, 20);
@@ -300,13 +308,48 @@ export default function App() {
       fragmentShader: `uniform vec3 topColor; uniform vec3 bottomColor; uniform float offset; uniform float exponent; varying vec3 vWorldPosition; void main(){ float h = normalize(vWorldPosition + vec3(0.0, offset, 0.0)).y; gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h,0.0), exponent), 0.0)), 1.0); }`,
       side: THREE.BackSide
     });
-    scene.add(new THREE.Mesh(skyGeo, skyMat));
+    const skyMesh = new THREE.Mesh(skyGeo, skyMat);
+    combatLightGroup.add(skyMesh);
+
+    // Hangar Room for Lobby
+    const hangarGroup = new THREE.Group();
+    hangarGroup.position.set(0, 1000, 0);
+    scene.add(hangarGroup);
+    
+    // Hangar Floor
+    const floorGeo = new THREE.PlaneGeometry(30, 30);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9, metalness: 0.1 });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.receiveShadow = true;
+    hangarGroup.add(floorMesh);
+
+    // Dark grey background wall
+    const wallGeo = new THREE.PlaneGeometry(30, 15);
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 1.0 });
+    const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+    wallMesh.position.set(0, 7.5, -8);
+    hangarGroup.add(wallMesh);
+    
+    // Minimal Spotlight
+    const hangarSpot = new THREE.SpotLight(0xffffff, 5.0, 25, Math.PI / 5, 0.8, 1);
+    hangarSpot.position.set(0, 8, 3);
+    hangarSpot.target.position.set(0, 0, 0);
+    hangarSpot.castShadow = true;
+    hangarSpot.shadow.bias = -0.001;
+    hangarSpot.shadow.mapSize.set(1024, 1024);
+    hangarGroup.add(hangarSpot);
+    hangarGroup.add(hangarSpot.target);
+
+    // Subtle Ambient
+    const hangarAmbient = new THREE.AmbientLight(0x22252a, 0.5);
+    hangarGroup.add(hangarAmbient);
 
     // World & Colliders
     const world = createWorld(scene);
 
     // 3D Humanoid Lobby Avatar Showcase
-    const lobbyAvatar = createLobbyAvatar(scene, new THREE.Vector3(0, terrainHeight(0, 0), 0));
+    const lobbyAvatar = createLobbyAvatar(scene, new THREE.Vector3(0, 1000, 0));
 
     // Muzzle flash particle sprite
     function buildFlashTexture(): THREE.CanvasTexture {
@@ -837,7 +880,10 @@ export default function App() {
         const pDist = player.pos.distanceTo(pos);
         if (pDist < BLAST_RADIUS) {
           const pFactor = 1 - (pDist / BLAST_RADIUS);
-          const pDmg = Math.round(MAX_DAMAGE * Math.max(0.18, pFactor));
+          let pDmg = Math.round(MAX_DAMAGE * Math.max(0.18, pFactor));
+          if (factionAlignmentRef.current === 'usmc' && gearTierRef.current === 'specialized') {
+            pDmg = Math.round(pDmg * 0.80); // Fortified perk: -20% explosive damage
+          }
           applyDamageToPlayer(pDmg, false, false, null);
           pushKillFeed('HIT BY EXPLOSION BLAST!');
         }
@@ -1150,6 +1196,10 @@ export default function App() {
       else weaponTypeIndex = 2; // Sniper
       const weaponType = WEAPONS[weaponTypeIndex].id;
 
+      const pHeadgear = localStorage.getItem('gun_arena_headgear') || 'fast';
+      const pTorso = localStorage.getItem('gun_arena_torso') || 'chest_rig';
+      const pLower = localStorage.getItem('gun_arena_lower') || 'pouches';
+
       const visuals = buildBotVisuals({
         botId,
         team,
@@ -1159,6 +1209,10 @@ export default function App() {
         weaponTypeIndex,
         weaponType,
         factionAlignment: factionAlignmentRef.current,
+        gearTier: gearTierRef.current,
+        headgear: team === 'blue' ? pHeadgear : undefined,
+        torsoConfig: team === 'blue' ? pTorso : undefined,
+        lowerConfig: team === 'blue' ? pLower : undefined,
         mode: matchConfig.mode,
         makeFlashSprite
       });
@@ -1318,6 +1372,18 @@ export default function App() {
       player.maxShield = activeClass.maxShield;
       player.classReloadMultiplier = activeClass.reloadMultiplier;
       player.classSpeedMultiplier = activeClass.speedMultiplier;
+
+      // Apply passive gear tier perks
+      if (gearTierRef.current === 'specialized') {
+        if (factionAlignmentRef.current === 'usmc') {
+          // Fortified: +15% maximum body armor capacity
+          player.maxShield = Math.floor(player.maxShield * 1.15);
+          player.shield = player.maxShield;
+        } else if (factionAlignmentRef.current === 'apex') {
+          // Stalker: +10% base movement speed
+          player.classSpeedMultiplier *= 1.10;
+        }
+      }
 
       player.pos.set(0, terrainHeight(0, 0) + PLAYER_EYE, 0);
       player.vel.set(0, 0, 0);
@@ -2057,6 +2123,10 @@ export default function App() {
       const dt = Math.min(0.05, clock.getDelta());
 
       if (gameStateRef.current === 'playing') {
+        combatLightGroup.visible = true;
+        hangarGroup.visible = false;
+        scene.fog = combatFog;
+
         // 1. Player movement & physics
         if (player.alive) {
           const eyeHeight = player.crouching ? PLAYER_EYE_CROUCH : PLAYER_EYE;
@@ -2417,7 +2487,11 @@ export default function App() {
 
         // 3. Aim FoV transition
         const targetFov = player.aiming ? (curW.adsFov ?? HIP_FOV) : HIP_FOV;
-        camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 10);
+        let adsSpeed = 10;
+        if (factionAlignmentRef.current === 'apex' && gearTierRef.current === 'specialized') {
+          adsSpeed = 11.5; // Stalker perk: +15% faster ADS transition
+        }
+        camera.fov += (targetFov - camera.fov) * Math.min(1, dt * adsSpeed);
         camera.updateProjectionMatrix();
         const showScope = player.aiming && !!curW.scoped;
         const scopeEl = containerRef.current?.querySelector('#scope-overlay') as HTMLElement | null;
@@ -3178,12 +3252,27 @@ export default function App() {
           });
         }
       } else if (gameStateRef.current === 'start') {
+        combatLightGroup.visible = false;
+        hangarGroup.visible = true;
+        scene.fog = lobbyFog;
+
         vmManager.root.visible = false;
         lobbyAvatar.group.visible = true;
         const t = performance.now() * 0.001;
         lobbyAvatar.update(t);
         lobbyAvatar.setFaction(factionAlignmentRef.current);
+        lobbyAvatar.setGearTier(gearTierRef.current);
         lobbyAvatar.setVisor(visorTypeRef.current);
+        
+        // Pass locker cosmetic configs
+        const h = localStorage.getItem('gun_arena_headgear') as import('./FactionContext').HeadgearOption || 'fast';
+        const tConf = localStorage.getItem('gun_arena_torso') as import('./FactionContext').TorsoOption || 'chest_rig';
+        const lConf = localStorage.getItem('gun_arena_lower') as import('./FactionContext').LowerOption || 'pouches';
+        
+        lobbyAvatar.setHeadgear(h);
+        lobbyAvatar.setTorsoConfig(tConf);
+        lobbyAvatar.setLowerConfig(lConf);
+        
         lobbyAvatar.setWeapon(selectedPrimaryRef.current);
 
         const camHeight = terrainHeight(0, 0) + 1.25;
@@ -3234,7 +3323,7 @@ export default function App() {
   }, []);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full select-none overflow-hidden font-mono bg-black text-[#e8edf0]">
+    <div ref={containerRef} className="relative w-full h-screen max-h-screen select-none overflow-hidden font-mono bg-black text-[#e8edf0]">
       {/* 3D Viewport */}
       <div id="viewport" className="fixed inset-0" />
 
@@ -3264,6 +3353,7 @@ export default function App() {
           {/* Diegetic Visor Helmet Overlay with Motion Tracker and Munitions Matrix */}
           <HelmetHUD
             visorType={visorType}
+            gearTier={gearTier}
             health={hudData.health}
             maxHealth={hudData.maxHealth}
             shield={hudData.shield}

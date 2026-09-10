@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GearTier } from './FactionContext';
 
 export type VisorType = 'standard' | 'recon' | 'apex';
 export type FactionType = 'usmc' | 'apex';
@@ -7,7 +8,11 @@ export interface LobbyAvatarController {
   group: THREE.Group;
   update: (timeSec: number) => void;
   setFaction: (faction: FactionType) => void;
+  setGearTier: (tier: GearTier) => void;
   setVisor: (visor: VisorType) => void;
+  setHeadgear: (headgear: import('./FactionContext').HeadgearOption) => void;
+  setTorsoConfig: (torso: import('./FactionContext').TorsoOption) => void;
+  setLowerConfig: (lower: import('./FactionContext').LowerOption) => void;
   setWeapon: (weaponId: string) => void;
   destroy: () => void;
 }
@@ -18,24 +23,29 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
   scene.add(root);
 
   let currentFaction: FactionType = 'usmc';
+  let currentGearTier: GearTier = 'standard';
   let currentVisor: VisorType = 'standard';
   let currentWeapon: string = 'ar';
+  
+  let currentHeadgear: import('./FactionContext').HeadgearOption = 'fast';
+  let currentTorsoConfig: import('./FactionContext').TorsoOption = 'chest_rig';
+  let currentLowerConfig: import('./FactionContext').LowerOption = 'pouches';
 
-  // Staging Pedestal Platform
+  // Staging Tactical Pedestal (Rugged Matte Military Deck)
   const pedestalGroup = new THREE.Group();
   root.add(pedestalGroup);
 
   const basePlateMat = new THREE.MeshStandardMaterial({
-    color: 0x15181d,
-    roughness: 0.4,
-    metalness: 0.8
+    color: 0x1a1d22,
+    roughness: 0.65,
+    metalness: 0.5
   });
-  const edgeGlowMat = new THREE.MeshStandardMaterial({
-    color: 0x2de2e6,
-    emissive: 0x2de2e6,
-    emissiveIntensity: 1.2,
-    roughness: 0.2
+  const edgeTrimMat = new THREE.MeshStandardMaterial({
+    color: 0x4a5568,
+    roughness: 0.5,
+    metalness: 0.7
   });
+
   const pedestalBase = new THREE.Mesh(
     new THREE.CylinderGeometry(1.5, 1.6, 0.12, 32),
     basePlateMat
@@ -45,25 +55,29 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
   pedestalGroup.add(pedestalBase);
 
   const pedestalRing = new THREE.Mesh(
-    new THREE.TorusGeometry(1.52, 0.025, 16, 48),
-    edgeGlowMat
+    new THREE.TorusGeometry(1.52, 0.02, 16, 48),
+    edgeTrimMat
   );
   pedestalRing.rotation.x = Math.PI / 2;
   pedestalRing.position.y = 0.12;
   pedestalGroup.add(pedestalRing);
 
-  // Spotlights for dramatic character showcase
-  const spotLight = new THREE.SpotLight(0xffffff, 2.5);
-  spotLight.position.set(0, 4.5, 3.0);
+  // Tactical Turntable Key & Fill Lighting
+  const spotLight = new THREE.SpotLight(0xf5f7fa, 3.2);
+  spotLight.position.set(0, 4.8, 3.2);
   spotLight.target = root;
   spotLight.angle = 0.65;
-  spotLight.penumbra = 0.5;
+  spotLight.penumbra = 0.45;
   spotLight.castShadow = true;
   root.add(spotLight);
 
-  const rimLight = new THREE.DirectionalLight(0x2de2e6, 1.2);
-  rimLight.position.set(-2, 3, -3);
+  const rimLight = new THREE.DirectionalLight(0xdde4ed, 1.2);
+  rimLight.position.set(-2.5, 3.2, -3.0);
   root.add(rimLight);
+
+  const fillLight = new THREE.DirectionalLight(0x8a929e, 0.6);
+  fillLight.position.set(2.5, 2.0, 2.5);
+  root.add(fillLight);
 
   // Character hierarchy
   const characterGroup = new THREE.Group();
@@ -74,7 +88,6 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
   let torsoGroup: THREE.Group | null = null;
   let chestMesh: THREE.Mesh | null = null;
   let headGroup: THREE.Group | null = null;
-  let visorMeshes: THREE.Mesh[] = [];
   let armL: THREE.Group | null = null;
   let armR: THREE.Group | null = null;
   let weaponGroup: THREE.Group | null = null;
@@ -84,55 +97,45 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
     while (characterGroup.children.length > 0) {
       characterGroup.remove(characterGroup.children[0]);
     }
-    visorMeshes = [];
 
-    // Faction palettes
     const isUSMC = currentFaction === 'usmc';
+    const isSpecialized = currentGearTier === 'specialized';
+
+    // Gritty, realistic modern military palettes
+    // USMC: Olive drab fatigues, woodland accents, coyote tan webbing
+    // Apex: Matte charcoal / black carbon weave, dark tactical slate
     const shirtColor = isUSMC ? 0x3e4a2d : 0x181a1e;
     const pantsColor = isUSMC ? 0x28331f : 0x121316;
-    const vestColor = isUSMC ? 0x485834 : 0x1c1f24;
-    const helmetColor = isUSMC ? 0x364228 : 0x141518;
-    const skinColor = isUSMC ? 0xd2a482 : 0xcbb39e;
-    const pouchesColor = isUSMC ? 0x6e6149 : 0x22262e;
+    const vestColor = isUSMC 
+      ? (isSpecialized ? 0x3b4629 : 0x485834) // Battle-worn heavy olive drab for breacher
+      : (isSpecialized ? 0x1c1f26 : 0x191c21); // Multicam-black for recon rig
+    const helmetColor = isUSMC ? 0x343e26 : 0x131518;
+    const skinColor = isUSMC ? 0xd2a482 : 0xcab5a2;
+    const pouchesColor = isUSMC ? 0x6e6149 : 0x242830; // Coyote tan for USMC, charcoal for Apex
+    const plateArmorColor = isUSMC ? 0x303a22 : 0x16181c;
 
     // Materials
-    const matShirt = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.8 });
+    const matShirt = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.82 });
     const matPants = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.85 });
-    const matVest = new THREE.MeshStandardMaterial({ color: vestColor, roughness: 0.75 });
-    const matHelmet = new THREE.MeshStandardMaterial({ color: helmetColor, roughness: 0.65, metalness: 0.2 });
-    const matSkin = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.7 });
-    const matBoots = new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.9 });
+    const matVest = new THREE.MeshStandardMaterial({ color: vestColor, roughness: 0.72 });
+    const matPlateArmor = new THREE.MeshStandardMaterial({ color: plateArmorColor, roughness: 0.65, metalness: 0.25 });
+    const matHelmet = new THREE.MeshStandardMaterial({ color: helmetColor, roughness: 0.65, metalness: 0.15 });
+    const matSkin = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.72 });
+    const matBoots = new THREE.MeshStandardMaterial({ color: 0x141517, roughness: 0.9 });
     const matPouches = new THREE.MeshStandardMaterial({ color: pouchesColor, roughness: 0.85 });
-    const matBeard = new THREE.MeshStandardMaterial({ color: 0x241c16, roughness: 0.95 });
-    const matSkullMask = new THREE.MeshStandardMaterial({ color: 0xd8d4cb, roughness: 0.7 });
-    const matSocketRecess = new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 0.95 });
-    const matHoodFabric = new THREE.MeshStandardMaterial({ color: 0x151617, roughness: 0.9 });
+    const matGloves = new THREE.MeshStandardMaterial({ color: 0x1c1d20, roughness: 0.85 });
+    const matHeadset = new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.6, metalness: 0.3 });
+    const matVisorSmoked = new THREE.MeshStandardMaterial({ color: 0x14181c, roughness: 0.2, metalness: 0.85 });
+    const matBeard = new THREE.MeshStandardMaterial({ color: 0x261e18, roughness: 0.95 });
 
-    // Visor color & material based on currentVisor
-    let visorColorHex = 0x2de2e6;
-    let visorGlowHex = 0x1ca2db;
-    if (currentVisor === 'recon') {
-      visorColorHex = 0x00ff66;
-      visorGlowHex = 0x00cc55;
-    } else if (currentVisor === 'apex') {
-      visorColorHex = 0xff2a2a;
-      visorGlowHex = 0xcc1111;
+    // Dynamic pedestal tint
+    if (isUSMC) {
+      edgeTrimMat.color.setHex(0x6e6149); // Coyote tan trim
+    } else {
+      edgeTrimMat.color.setHex(0x4a5568); // Matte gunmetal trim
     }
 
-    const matVisor = new THREE.MeshStandardMaterial({
-      color: visorColorHex,
-      emissive: visorGlowHex,
-      emissiveIntensity: 2.4,
-      roughness: 0.15,
-      metalness: 0.85
-    });
-
-    // Update pedestal ring glow color to match equipped visor
-    edgeGlowMat.color.setHex(visorColorHex);
-    edgeGlowMat.emissive.setHex(visorGlowHex);
-    rimLight.color.setHex(visorColorHex);
-
-    // Legs
+    // 1. LEGS (Standard Combat Fatigues with Kneepads)
     // Left Leg
     const legLGroup = new THREE.Group();
     legLGroup.position.set(-0.16, 0.92, 0);
@@ -142,10 +145,14 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
     const shinL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.44, 0.16), matPants);
     shinL.position.y = -0.62;
     shinL.castShadow = true;
+    // Ballistic Kneepad
+    const kneeL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.11, 0.05), matPlateArmor);
+    kneeL.position.set(0, -0.42, 0.09);
+    kneeL.castShadow = true;
     const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.24), matBoots);
     bootL.position.set(0, -0.86, 0.04);
     bootL.castShadow = true;
-    legLGroup.add(thighL, shinL, bootL);
+    legLGroup.add(thighL, shinL, kneeL, bootL);
 
     // Right Leg
     const legRGroup = new THREE.Group();
@@ -156,22 +163,30 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
     const shinR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.44, 0.16), matPants);
     shinR.position.y = -0.62;
     shinR.castShadow = true;
+    const kneeR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.11, 0.05), matPlateArmor);
+    kneeR.position.set(0, -0.42, 0.09);
+    kneeR.castShadow = true;
     const bootR = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.24), matBoots);
     bootR.position.set(0, -0.86, 0.04);
     bootR.castShadow = true;
-    legRGroup.add(thighR, shinR, bootR);
+    legRGroup.add(thighR, shinR, kneeR, bootR);
 
     characterGroup.add(legLGroup, legRGroup);
 
-    // Torso
+    // 2. TORSO HIERARCHY
     torsoGroup = new THREE.Group();
     characterGroup.add(torsoGroup);
 
-    // Lower abdomen
+    // Lower abdomen / waist
     const lowerTorso = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.24, 0.22), matPants);
     lowerTorso.position.y = 0.98;
     lowerTorso.castShadow = true;
     torsoGroup.add(lowerTorso);
+
+    // Tactical Webbing Duty Belt
+    const dutyBelt = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.08, 0.24), matPouches);
+    dutyBelt.position.y = 0.94;
+    torsoGroup.add(dutyBelt);
 
     // Chest / Upper Torso
     chestMesh = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.36, 0.26), matShirt);
@@ -179,27 +194,80 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
     chestMesh.castShadow = true;
     torsoGroup.add(chestMesh);
 
-    // Tactical Vest Plates
-    const vestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.32, 0.10), matVest);
-    vestPlate.position.set(0, 1.28, 0.10);
-    vestPlate.castShadow = true;
-    torsoGroup.add(vestPlate);
+    if (currentTorsoConfig === 'molle_vest') {
+      // Heavy battle-worn olive drab modular plate carrier (IOTV style)
+      const iotvCarrier = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.38, 0.32), matVest);
+      iotvCarrier.position.set(0, 1.29, 0.01);
+      iotvCarrier.castShadow = true;
+      torsoGroup.add(iotvCarrier);
 
-    // Tactical Magazine Pouches
-    [-0.12, 0, 0.12].forEach((px) => {
-      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.06), matPouches);
-      pouch.position.set(px, 1.05, 0.14);
-      pouch.castShadow = true;
-      torsoGroup.add(pouch);
-    });
+      // Attached Neck Ballistic Guard Collar
+      const neckGuard = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.30), matPlateArmor);
+      neckGuard.position.set(0, 1.50, 0.01);
+      neckGuard.castShadow = true;
+      torsoGroup.add(neckGuard);
+
+      // Heavy Quad Ammo Pouches + Side Ballistic Plates
+      [-0.14, -0.05, 0.05, 0.14].forEach((px) => {
+        const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.15, 0.08), matPouches);
+        pouch.position.set(px, 1.20, 0.19);
+        pouch.castShadow = true;
+        torsoGroup.add(pouch);
+      });
+    } else {
+      // Low-profile modular chest rig / plate carrier
+      const standardPlate = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.34, 0.28), matVest);
+      standardPlate.position.set(0, 1.28, 0.02);
+      standardPlate.castShadow = true;
+      torsoGroup.add(standardPlate);
+
+      // Modular cross-harness straps
+      const harnessL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 0.28), matPouches);
+      harnessL.position.set(-0.16, 1.28, 0.01);
+      const harnessR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 0.28), matPouches);
+      harnessR.position.set(0.16, 1.28, 0.01);
+      torsoGroup.add(harnessL, harnessR);
+
+      // Triple Mag Pouch on front
+      [-0.12, 0, 0.12].forEach((px) => {
+        const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.06), matPouches);
+        pouch.position.set(px, 1.18, 0.17);
+        pouch.castShadow = true;
+        torsoGroup.add(pouch);
+      });
+    }
+
+    if (currentLowerConfig === 'pouches') {
+      // Groin Ballistic Protector Flap
+      const groinFlap = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.06), matPlateArmor);
+      groinFlap.position.set(0, 0.84, 0.14);
+      groinFlap.castShadow = true;
+      torsoGroup.add(groinFlap);
+      
+      const sidePouchL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.12), matPouches);
+      sidePouchL.position.set(-0.22, 0.94, 0);
+      const sidePouchR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.12), matPouches);
+      sidePouchR.position.set(0.22, 0.94, 0);
+      torsoGroup.add(sidePouchL, sidePouchR);
+    } else {
+      // Thigh Holster on Right Leg
+      const holsterDrop = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.14), matPlateArmor);
+      holsterDrop.position.set(0.12, -0.05, 0);
+      holsterDrop.castShadow = true;
+      legRGroup.add(holsterDrop); // Attach to legRGroup!
+      
+      const sidearm = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.12, 0.10), new THREE.MeshStandardMaterial({color: 0x111111}));
+      sidearm.position.set(0.15, -0.05, 0.02);
+      legRGroup.add(sidearm);
+    }
 
     // Neck
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.20, 12), matSkin);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.18, 12), matSkin);
     neck.position.set(0, 1.48, 0);
     neck.castShadow = true;
     torsoGroup.add(neck);
 
-    // Head
+    // 3. HEAD & HELMET / HEADSET ASSEMBLY
     headGroup = new THREE.Group();
     headGroup.position.set(0, 1.62, 0);
     torsoGroup.add(headGroup);
@@ -209,62 +277,76 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
     headBase.castShadow = true;
     headGroup.add(headBase);
 
-    if (isUSMC) {
-      // USMC Marine with 3D blocky tactical beard & combat PASGT helmet
-      const beardJaw = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.09, 0.14), matBeard);
-      beardJaw.position.set(0, 0.01, 0.10);
-      const beardChin = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.07, 0.08), matBeard);
-      beardChin.position.set(0, -0.04, 0.13);
-      headGroup.add(beardJaw, beardChin);
+    // Tactical Communications Headset & Ear Cups (common to most configs)
+    const commL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.08), matHeadset);
+    commL.position.set(-0.145, 0.09, 0);
+    const commR = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.08), matHeadset);
+    commR.position.set(0.145, 0.09, 0);
+    headGroup.add(commL, commR);
 
-      const helmetMesh = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.16, 0.30), matHelmet);
+    // Tactical Throat Mic / Boom Mic
+    const boomMic = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.14), matHeadset);
+    boomMic.position.set(-0.10, 0.03, 0.10);
+    boomMic.rotation.y = 0.45;
+    headGroup.add(boomMic);
+
+    if (currentHeadgear === 'fast') {
+      // Ballistic FAST Helmet
+      const helmetMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.29, 0.19, 0.30), 
+        matHelmet
+      );
       helmetMesh.position.set(0, 0.17, -0.01);
       helmetMesh.castShadow = true;
       headGroup.add(helmetMesh);
 
-      const visorBrim = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.024, 0.09), matHelmet);
-      visorBrim.position.set(0, 0.12, 0.16);
-      visorBrim.rotation.x = 0.16;
-      headGroup.add(visorBrim);
-
-      // Diegetic Visor Bar (colored pixels/glow)
-      const visorBar = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.045, 0.05), matVisor);
-      visorBar.position.set(0, 0.10, 0.14);
-      headGroup.add(visorBar);
-      visorMeshes.push(visorBar);
-
-      // Comms headset
-      const commL = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 0.07), matPouches);
-      commL.position.set(-0.145, 0.09, 0);
-      const commR = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 0.07), matPouches);
-      commR.position.set(0.145, 0.09, 0);
-      headGroup.add(commL, commR);
+      // NVG Shroud Bracket
+      const nvgBracket = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.04), matPlateArmor);
+      nvgBracket.position.set(0, 0.16, 0.15);
+      headGroup.add(nvgBracket);
+    } else if (currentHeadgear === 'boonie') {
+      // Boonie Hat (Soft fabric rim)
+      const hatBase = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.1, 0.26), matVest);
+      hatBase.position.set(0, 0.18, 0);
+      const hatRim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.02, 16), matVest);
+      hatRim.position.set(0, 0.14, 0);
+      headGroup.add(hatBase, hatRim);
+    } else if (currentHeadgear === 'skull') {
+      // Skull Mask Mandible Guard over lower jaw
+      const skullMask = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.12, 0.13), new THREE.MeshStandardMaterial({color: 0xcccccc}));
+      skullMask.position.set(0, 0.02, 0.10);
+      skullMask.castShadow = true;
+      headGroup.add(skullMask);
+      
+      // Add a beanie or soft cap
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.10, 0.25), matShirt);
+      cap.position.set(0, 0.22, 0);
+      headGroup.add(cap);
     } else {
-      // APEX Operator with 3D Skull Mask plate & Tactical Hood
-      const skullPlate = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.19, 0.05), matSkullMask);
-      skullPlate.position.set(0, 0.05, 0.14);
-      const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.05, 0.04), matSocketRecess);
-      eyeL.position.set(-0.06, 0.09, 0.155);
-      const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.05, 0.04), matSocketRecess);
-      eyeR.position.set(0.06, 0.09, 0.155);
-      const teeth = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.025, 0.04), matSocketRecess);
-      teeth.position.set(0, -0.015, 0.165);
-      const hoodBack = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.28, 0.15), matHoodFabric);
-      hoodBack.position.set(0, 0.07, -0.08);
-      const hoodCollar = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.08, 0.24), matHoodFabric);
-      hoodCollar.position.set(0, -0.05, 0);
-      headGroup.add(skullPlate, eyeL, eyeR, teeth, hoodBack, hoodCollar);
-
-      // Diegetic Visor Eye sensors (colored pixels/glow)
-      const visorSensorL = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.022, 0.02), matVisor);
-      visorSensorL.position.set(-0.06, 0.09, 0.17);
-      const visorSensorR = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.022, 0.02), matVisor);
-      visorSensorR.position.set(0.06, 0.09, 0.17);
-      headGroup.add(visorSensorL, visorSensorR);
-      visorMeshes.push(visorSensorL, visorSensorR);
+      // Base config (no headgear), just add a headband for the headset
+      const headband = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.03, 0.06), matHeadset);
+      headband.position.set(0, 0.21, 0);
+      headGroup.add(headband);
     }
 
-    // Arms & Weapon Ready Stance
+    if (currentVisor === 'recon') {
+      // Dark ballistic visor shield plate
+      const visorPlate = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.09, 0.05), matVisorSmoked);
+      visorPlate.position.set(0, 0.11, 0.14);
+      headGroup.add(visorPlate);
+    } else if (currentVisor === 'apex') {
+      const visorPlate = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.06), new THREE.MeshStandardMaterial({color: 0xff4400, emissive: 0x551100}));
+      visorPlate.position.set(0, 0.11, 0.14);
+      headGroup.add(visorPlate);
+    }
+
+    // 4. ARMS & WEAPON READY STANCE
+    // Rolled Combat Sleeves Logic for Apex Specialized:
+    // If Apex specialized: rolled combat sleeves -> upper arm has shirt, lower arm has bare skin with tactical gloves!
+    const isRolledSleeves = !isUSMC && isSpecialized;
+    const lowerArmMat = isRolledSleeves ? matSkin : matShirt;
+
+    // Left Arm
     armL = new THREE.Group();
     armL.position.set(-0.28, 1.42, 0);
     torsoGroup.add(armL);
@@ -272,13 +354,27 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
     const upperArmL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, 0.13), matShirt);
     upperArmL.position.y = -0.14;
     upperArmL.castShadow = true;
-    const lowerArmL = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.12), matShirt);
+
+    // Rolled sleeve cuff if rolled
+    if (isRolledSleeves) {
+      const cuffL = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.04, 0.14), matShirt);
+      cuffL.position.set(0.02, -0.27, 0.06);
+      armL.add(cuffL);
+    }
+
+    const lowerArmL = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.12), lowerArmMat);
     lowerArmL.position.set(0.05, -0.36, 0.12);
     lowerArmL.rotation.x = 0.55;
     lowerArmL.rotation.z = -0.25;
     lowerArmL.castShadow = true;
-    armL.add(upperArmL, lowerArmL);
 
+    const gloveL = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.08, 0.12), matGloves);
+    gloveL.position.set(0.07, -0.47, 0.17);
+    gloveL.rotation.x = 0.55;
+    gloveL.rotation.z = -0.25;
+    armL.add(upperArmL, lowerArmL, gloveL);
+
+    // Right Arm
     armR = new THREE.Group();
     armR.position.set(0.28, 1.42, 0);
     torsoGroup.add(armR);
@@ -286,14 +382,26 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
     const upperArmR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, 0.13), matShirt);
     upperArmR.position.y = -0.14;
     upperArmR.castShadow = true;
-    const lowerArmR = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.12), matShirt);
+
+    if (isRolledSleeves) {
+      const cuffR = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.04, 0.14), matShirt);
+      cuffR.position.set(-0.02, -0.27, 0.06);
+      armR.add(cuffR);
+    }
+
+    const lowerArmR = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.12), lowerArmMat);
     lowerArmR.position.set(-0.06, -0.34, 0.15);
     lowerArmR.rotation.x = 0.65;
     lowerArmR.rotation.z = 0.25;
     lowerArmR.castShadow = true;
-    armR.add(upperArmR, lowerArmR);
 
-    // Weapon in hands
+    const gloveR = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.08, 0.12), matGloves);
+    gloveR.position.set(-0.08, -0.45, 0.21);
+    gloveR.rotation.x = 0.65;
+    gloveR.rotation.z = 0.25;
+    armR.add(upperArmR, lowerArmR, gloveR);
+
+    // 5. WEAPON IN HANDS
     weaponGroup = new THREE.Group();
     weaponGroup.position.set(0.10, 1.08, 0.35);
     weaponGroup.rotation.set(-0.15, -0.18, 0.05);
@@ -307,11 +415,10 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
       targetGroup.remove(targetGroup.children[0]);
     }
 
-    const matGunMetal = new THREE.MeshStandardMaterial({ color: 0x222428, roughness: 0.45, metalness: 0.75 });
-    const matGunDark = new THREE.MeshStandardMaterial({ color: 0x141618, roughness: 0.6, metalness: 0.4 });
-    const matAccent = new THREE.MeshStandardMaterial({ color: 0x3f8fe0, roughness: 0.4, metalness: 0.6 });
+    const matGunMetal = new THREE.MeshStandardMaterial({ color: 0x25282d, roughness: 0.45, metalness: 0.8 });
+    const matGunDark = new THREE.MeshStandardMaterial({ color: 0x121315, roughness: 0.7, metalness: 0.3 });
+    const matAccent = new THREE.MeshStandardMaterial({ color: 0x4a5568, roughness: 0.4, metalness: 0.5 });
 
-    // Stylized Weapon Representation
     if (weaponId === 'shotgun') {
       const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.55), matGunDark);
       const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.65, 8), matGunMetal);
@@ -366,25 +473,25 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
   return {
     group: root,
     update: (timeSec: number) => {
-      // Idle organic breathing simulation
+      // Organic breathing simulation
       const breathPhase = timeSec * 2.0;
-      const breathScale = 1.0 + Math.sin(breathPhase) * 0.025;
+      const breathScale = 1.0 + Math.sin(breathPhase) * 0.022;
       if (chestMesh) {
         chestMesh.scale.set(breathScale, breathScale, breathScale);
       }
       if (headGroup) {
-        headGroup.position.y = 1.62 + Math.sin(breathPhase) * 0.008;
-        headGroup.rotation.y = Math.sin(timeSec * 0.4) * 0.08;
+        headGroup.position.y = 1.62 + Math.sin(breathPhase) * 0.007;
+        headGroup.rotation.y = Math.sin(timeSec * 0.4) * 0.06;
       }
       if (torsoGroup) {
-        torsoGroup.position.y = Math.sin(breathPhase) * 0.005;
+        torsoGroup.position.y = Math.sin(breathPhase) * 0.004;
       }
       if (weaponGroup) {
-        weaponGroup.position.y = 1.08 + Math.sin(breathPhase + 0.3) * 0.008;
+        weaponGroup.position.y = 1.08 + Math.sin(breathPhase + 0.3) * 0.006;
       }
 
-      // Gentle pedestal rotation
-      pedestalRing.rotation.z = timeSec * 0.25;
+      // Smooth turntable base rotation
+      pedestalRing.rotation.z = timeSec * 0.15;
     },
     setFaction: (faction: FactionType) => {
       if (currentFaction !== faction) {
@@ -392,9 +499,33 @@ export function createLobbyAvatar(scene: THREE.Scene, basePos: THREE.Vector3): L
         buildCharacter();
       }
     },
+    setGearTier: (tier: GearTier) => {
+      if (currentGearTier !== tier) {
+        currentGearTier = tier;
+        buildCharacter();
+      }
+    },
     setVisor: (visor: VisorType) => {
       if (currentVisor !== visor) {
         currentVisor = visor;
+        buildCharacter();
+      }
+    },
+    setHeadgear: (h) => {
+      if (currentHeadgear !== h) {
+        currentHeadgear = h;
+        buildCharacter();
+      }
+    },
+    setTorsoConfig: (t) => {
+      if (currentTorsoConfig !== t) {
+        currentTorsoConfig = t;
+        buildCharacter();
+      }
+    },
+    setLowerConfig: (l) => {
+      if (currentLowerConfig !== l) {
+        currentLowerConfig = l;
         buildCharacter();
       }
     },
